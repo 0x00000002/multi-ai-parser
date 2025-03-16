@@ -1,0 +1,7 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=64.0"]
+
+[project]
+name = "multi-ai-parser"
+version = "0.1"

@@ -1,3 +1,14 @@
 .env
 /aienv
 aienv
+
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# PyInstaller cache files
+*.spec
+
