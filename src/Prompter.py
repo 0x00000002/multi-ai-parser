@@ -39,6 +39,18 @@ class Prompter:
         prompt += text
         return prompt
 
+    @staticmethod
+    def get_prompt_for_translation(translateTo:str, text:str):
+        prompt = f"Translate the following text to the {translateTo} language.\n"
+        prompt += text
+        return prompt
+    
+    @staticmethod
+    def get_prompt_for_translation_json(translateTo:str, stringified_json:str):
+        prompt = f"Translate ONLY the values of the following JSON into {translateTo} language. Don't translate links/urls.\n"
+        prompt += stringified_json
+        prompt += "Respond in the same JSON format"
+        return prompt
 
     @staticmethod
     def get_prompt_for_links_json(text):

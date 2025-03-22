@@ -1,14 +1,15 @@
 import pytest
-from src.ai.Gemini import Gemini
+import src.ai.AIConfig as config
+from src.ai.Google import Gemini
 
 def test_gemini_initialization():
     """Test that Gemini can be initialized with a system prompt"""
-    ai = Gemini("")
+    ai = Gemini(config.Models.GEMINI_1_5_PRO, "")
     assert isinstance(ai, Gemini)
 
 def test_gemini_stream():
     """Test that Gemini can stream responses"""
-    ai = Gemini("Answer the question with exactly one word")
+    ai = Gemini(config.Models.GEMINI_1_5_PRO, "Answer the question with exactly one word")
     response = ai.stream("What is the capital of France?")
     assert response is not None
     assert isinstance(response, str)
@@ -17,7 +18,7 @@ def test_gemini_stream():
 
 def test_gemini_request():
     """Test that Gemini can request responses"""
-    ai = Gemini("Answer the question with exactly one word")
+    ai = Gemini(config.Models.GEMINI_1_5_PRO, "Answer the question with exactly one word")
     response = ai.request("What is the capital of France?")
     assert response is not None
     assert isinstance(response, str)
