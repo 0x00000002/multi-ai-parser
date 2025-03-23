@@ -29,10 +29,10 @@ class Model(Enum):
     CLAUDE_HAIKU_3_5 = ("claude-3-5-haiku-latest", "ClaudeAI", Privacy.EXTERNAL, Quality.LOW, Speed.FAST)
     
     # Ollama models
-    OLLAMA_DEEPSEEK_R1_7B = ("deepseek-r1:7b", "Ollama", Privacy.LOCAL, Quality.LOW, Speed.STANDARD)
-    OLLAMA_DEEPSEEK_R1_32B = ("deepseek-r1:32b", "Ollama", Privacy.LOCAL, Quality.MEDIUM, Speed.STANDARD)
+    OLLAMA_GEMMA3 = ("gemma3:27b", "Ollama", Privacy.LOCAL, Quality.MEDIUM, Speed.STANDARD)
+    OLLAMA_DEEPSEEK_R1_32B = ("deepseek-r1:32b", "Ollama", Privacy.LOCAL, Quality.MEDIUM, Speed.SLOW)
     OLLAMA_QWQ = ("qwq", "Ollama", Privacy.LOCAL, Quality.LOW, Speed.STANDARD)
-    OLLAMA_GEMMA3 = ("gemma3", "Ollama", Privacy.LOCAL, Quality.MEDIUM, Speed.STANDARD)
+    OLLAMA_DEEPSEEK_R1_7B = ("deepseek-r1:7b", "Ollama", Privacy.LOCAL, Quality.LOW, Speed.STANDARD)
     
     # Google models
     GEMINI_1_5_PRO = ("gemini-1.5-pro", "Gemini", Privacy.EXTERNAL, Quality.MEDIUM, Speed.FAST)

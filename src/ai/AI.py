@@ -1,22 +1,15 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-import os
-from dotenv import load_dotenv
-from IPython.display import Markdown, display
-import json
-from pydantic import BaseModel, TypeAdapter
 from typing import List, Dict, Any, Optional, Type, Union
 import logging
 import src.ai.AIConfig as config
 from src.ai.ModelSelector import ModelSelector, UseCase
 from src.Parser import Parser
 from enum import Enum
+
 # Import all provider classes to make them available in globals()
-from src.ai.Anthropic import ClaudeAI
-from src.ai.OpenAI import ChatGPT
-from src.ai.Ollama import Ollama
-from src.ai.Google import Gemini
+from src.ai.modules.Anthropic import ClaudeAI
+from src.ai.modules.OpenAI import ChatGPT
+from src.ai.modules.Ollama import Ollama
+from src.ai.modules.Google import Gemini
 
 
 class Role(Enum):
