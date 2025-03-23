@@ -9,12 +9,10 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import src.ai.AIConfig as config
+from src.Logger import Logger
 
-import logging
 from google import genai
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # In[2]:
 
@@ -75,10 +73,11 @@ class GeminiParams(BaseModel):
         arbitrary_types_allowed = True
 
 class Gemini:
-    def __init__(self, model: config.Model = config.Model.GEMINI_1_5_PRO, system_prompt: str = ""):
+    def __init__(self, model: config.Model = config.Model.GEMINI_1_5_PRO, system_prompt: str = "", logger: Optional[Logger] = None):
         self.system_prompt = system_prompt
         self.response = ""
         self.model = model
+        self.logger = logger
 
         # Validation check - ensure this is an Anthropic model
         if model.provider_class_name != "Gemini":
@@ -95,7 +94,8 @@ class Gemini:
         except Exception as e:
             raise AI_API_Key_Error(f"Failed to configure Google Gemini API: {str(e)}")
         
-        logger.info(f"Successfully initialized client for {model.name} model")
+        if self.logger:
+            self.logger.info(f"Successfully initialized client for {model.name} model")
         
 
     def _build_conversation_history(self, user_prompt: str) -> List[Dict[str, Any]]:
@@ -187,7 +187,8 @@ class Gemini:
             return response
         except Exception as e:
             error_msg = f"Error streaming from Gemini {self.model}: {str(e)}"
-            logger.error(error_msg)
+            if self.logger:
+                self.logger.error(error_msg)
             
             if "rate limit" in str(e).lower():
                 raise AI_Streaming_Error(f"Rate limit exceeded. Please try again later: {str(e)}")
@@ -206,7 +207,8 @@ class Gemini:
             return res.text
         except Exception as e:
             error_msg = f"Error requesting from Gemini {self.model}: {str(e)}"
-            logger.error(error_msg)
+            if self.logger:
+                self.logger.error(error_msg)
             
             if "rate limit" in str(e).lower():
                 raise AI_Processing_Error(f"Rate limit exceeded. Please try again later: {str(e)}")

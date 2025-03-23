@@ -12,3 +12,7 @@ class AI_Processing_Error(Exception):
 class AI_Streaming_Error(Exception):
     """Exception raised when there is an error during AI streaming."""
     pass
+
+class AI_Setup_Error(Exception):
+    """Exception raised when there is an error during AI setup."""
+    pass

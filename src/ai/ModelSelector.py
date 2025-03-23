@@ -26,7 +26,7 @@ class ModelSelector:
         quality: Optional[config.Quality] = None,
         speed: Optional[config.Speed] = None,
         use_local: Optional[bool] = False
-    ) -> Dict[str, Any]:
+    ) -> config.Model:
         """
         Get model parameters based on use case and requirements.
         
@@ -75,11 +75,10 @@ class ModelSelector:
         }
 
         # Base parameters based on privacy preference
-        params = {
-            'privacy': config.Privacy.LOCAL if use_local else config.Privacy.EXTERNAL,
-            'quality': quality if quality else use_case_params[use_case]['quality'],
-            'speed': speed if speed else use_case_params[use_case]['speed']
-        }
+
+        privacy = config.Privacy.LOCAL if use_local else config.Privacy.EXTERNAL
+        quality = quality if quality else use_case_params[use_case]['quality']
+        speed = speed if speed else use_case_params[use_case]['speed']
 
         
         # Specific adjustments for different use cases
@@ -92,13 +91,13 @@ class ModelSelector:
                 
         elif use_case == UseCase.CODING:
             # For coding, we might prioritize capability over speed
-            if quality != config.Quality.LOW and params['speed'] == config.Speed.FAST:
+            if quality != config.Quality.LOW and speed == config.Speed.FAST:
                 # Coding requires precision, so we might override speed for quality
-                params['speed'] = config.Speed.STANDARD
+                speed = config.Speed.STANDARD
         
         # Add more use-case specific adjustments as needed
-        
-        return params
+        model = config.find_model(privacy, quality, speed)
+        return model    
 
     @staticmethod
     def get_system_prompt(use_case: UseCase) -> str:

@@ -8,11 +8,11 @@ from dotenv import load_dotenv
 from enum import Enum
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import logging
+from src.Logger import Logger
+
 import ollama
 import src.ai.AIConfig as config
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+
 
 # In[2]:
 class OllamaParams(BaseModel):
@@ -21,10 +21,11 @@ class OllamaParams(BaseModel):
     messages: List[Dict[str, str]]
 
 class Ollama:    
-    def __init__(self, model: config.Model = config.Model.OLLAMA_GEMMA3, system_prompt: str = ""):
+    def __init__(self, model: config.Model = config.Model.OLLAMA_GEMMA3, system_prompt: str = "", logger: Optional[Logger] = None):
         self.system_prompt = system_prompt
         self.response = ""
         self.model = model
+        self.logger = logger
 
         # Validation check - ensure this is an Anthropic model
         if model.provider_class_name != "Ollama":
@@ -36,11 +37,13 @@ class Ollama:
             self.client = ollama.Client()
             # Test connection
             self.client.list()
-            logger.info(f"Successfully initialized client for provider Ollama")
+            if self.logger:
+                self.logger.info(f"Successfully initialized client for provider Ollama")
         except Exception as e:
             raise AI_API_Key_Error(f"Could not connect to Ollama service : {str(e)}")
         
-        logger.info(f"Successfully initialized client for {model.name} model")
+        if self.logger:
+            self.logger.info(f"Successfully initialized client for {model.name} model")
 
 
     def _get_params(self, messages, optional_params: Dict[str, Any] = {}) -> dict:
@@ -73,7 +76,8 @@ class Ollama:
                         response += text   
             return response
         except Exception as e:
-            logger.error(f"Ollama{self.model}: Error during streaming: {str(e)}")
+            if self.logger:
+                self.logger.error(f"Ollama{self.model}: Error during streaming: {str(e)}")
             raise AI_Streaming_Error(f"Ollama {self.model}: Error during streaming: {str(e)}")
 
     def request(self, messages, optional_params: Dict[str, Any] = {}):
@@ -85,6 +89,7 @@ class Ollama:
             response = res.get("message", {}).get("content", "")
             return response
         except Exception as e:
-            logger.error(f"Ollama{self.model}: Error during request: {str(e)}")
+            if self.logger:
+                self.logger.error(f"Ollama{self.model}: Error during request: {str(e)}")
             raise AI_Processing_Error(f"Ollama {self.model}: Error during request: {str(e)}")
 

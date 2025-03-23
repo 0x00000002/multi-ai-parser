@@ -5,9 +5,7 @@ import logging
 
 import src.ai.AIConfig as config
 from openai import OpenAI
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+from src.Logger import Logger
 
 
 class OpenAIParams(BaseModel):
@@ -23,10 +21,11 @@ class OpenAIParams(BaseModel):
     stream: Optional[bool] = None
 
 class ChatGPT:    
-    def __init__(self, model: config.Model = config.Model.CHATGPT_4O_MINI, system_prompt: str = ""):
+    def __init__(self, model: config.Model = config.Model.CHATGPT_4O_MINI, system_prompt: str = "", logger: Optional[Logger] = None):
         self.system_prompt = system_prompt
         self.response = ""
         self.model = model
+        self._logger = logger
 
         # Validation check - ensure this is an Anthropic model
         if model.provider_class_name != "ChatGPT":
@@ -37,7 +36,8 @@ class ChatGPT:
             raise AI_API_Key_Error("No valid OpenAI API key found")
         
         self.client = OpenAI(api_key=api_key)
-        logger.info(f"Successfully initialized client for {model.name} model")
+        if self._logger:
+            self._logger.info(f"Successfully initialized client for {model.name} model")
 
 
     def _get_params(self, messages, optional_params: Dict[str, Any] = {}) -> dict:
@@ -71,7 +71,8 @@ class ChatGPT:
             
             return response
         except Exception as e:
-            logger.error(f"OpenAI{self.model}: Error during streaming: {str(e)}")
+            if self._logger:
+                self._logger.error(f"OpenAI{self.model}: Error during streaming: {str(e)}")
             raise AI_Streaming_Error(f"OpenAI{self.model}: Error during streaming: {str(e)}")
 
     def request(self, messages, optional_params: Dict[str, Any] = {}):
@@ -82,12 +83,21 @@ class ChatGPT:
             response = self.client.chat.completions.create(**params)    
             return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"OpenAI{self.model}: Error during request: {str(e)}")
+            if self._logger:
+                self._logger.error(f"OpenAI{self.model}: Error during request: {str(e)}")
             raise AI_Processing_Error(f"OpenAI{self.model}: Error during request: {str(e)}")
 
     @property
     def results(self):
         """Property that returns the response for compatibility with existing code."""
         return self.response
+
+    @property
+    def logger(self) -> Logger:
+        return self._logger
+        
+    @logger.setter
+    def logger(self, value: Logger):
+        self._logger = value
 
 
