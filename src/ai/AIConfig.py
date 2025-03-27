@@ -25,8 +25,10 @@ class Speed(Enum):
     SLOW = auto()
 
 class Model(Enum):
+
+
     # OpenAI models
-    CHATGPT_O3_MINI = ("gpt-o3-mini", Provider.OPENAI.value, Privacy.EXTERNAL, Quality.HIGH, Speed.FAST)
+    CHATGPT_O3_MINI = ("o3-mini-2025-01-31", Provider.OPENAI.value, Privacy.EXTERNAL, Quality.HIGH, Speed.FAST)
     CHATGPT_4O_MINI = ("gpt-4o-mini", Provider.OPENAI.value, Privacy.EXTERNAL, Quality.MEDIUM, Speed.FAST)
 
     # Anthropic models
@@ -41,9 +43,11 @@ class Model(Enum):
     OLLAMA_DEEPSEEK_R1_7B = ("deepseek-r1:7b", Provider.OLLAMA.value, Privacy.LOCAL, Quality.LOW, Speed.STANDARD)
     
     # Google models
+    GEMINI_2_5_PRO = ("gemini-2.5-pro-exp-03-25", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.HIGH, Speed.FAST)
     GEMINI_1_5_PRO = ("gemini-1.5-pro", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.MEDIUM, Speed.FAST)
     GEMINI_2_FLASH = ("gemini-2-flash", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.HIGH, Speed.FAST)
     GEMINI_2_FLASH_LITE = ("gemini-2-flash-lite", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.MEDIUM, Speed.FAST)
+
 
     def __init__(self, model_id: str, provider_class: str, privacy: Privacy, quality: Quality, speed: Speed):
         self.model_id = model_id
@@ -90,7 +94,7 @@ def find_model(privacy: Privacy, quality: Quality, speed: Speed) -> Model:
         ValueError: If no matching model is found
     """
     candidates = []
-    
+
     # Find all models that match the exact criteria
     for model in Model:
         if (model.privacy == privacy and 

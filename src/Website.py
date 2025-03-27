@@ -12,7 +12,7 @@ from src.ai.ModelSelector import ModelSelector, UseCase
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Union, Callable
 import json
-
+from src.Logger import Logger, NullLogger
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -34,11 +34,15 @@ class Website:
     links_json: list[str] 
     images_json: list[str] 
     translated_links_json: list[str] 
-    
     # Optional AI factory function for dependency injection
     ai_factory: Callable[..., Any] = None
+
+    class Parsing_Error(Exception):
+        """Custom exception for parsing-related errors."""
+        pass
+
     
-    def __init__(self, url: str, ai_factory: Optional[Callable[..., Any]] = None):
+    def __init__(self, url: str, ai_factory: Optional[Callable[..., Any]] = None, logger: Optional[Logger] = None):
         """
         Create this Website object from the given url using the BeautifulSoup library
         
@@ -51,13 +55,14 @@ class Website:
         self.ai_factory = ai_factory or self._default_ai_factory
         self.fetch()
         self.use_soup()
+        self._logger = logger if logger is not None else NullLogger()
 
     def _default_ai_factory(self, model_params: Dict[str, Any], system_prompt: str) -> AI:
         """Default AI factory method if none is provided."""
         return AI(model_params, system_prompt=system_prompt)
 
     def fetch(self):
-        logger.info(f"Fetching {self.url}...")        
+        self._logger.info(f"Fetching {self.url}...")        
         response = requests.get(self.url, headers=headers)
         self.body = response.content
 
@@ -106,13 +111,13 @@ class Website:
         # Use the factory to create the translator
         translator = self.ai_factory(model_params, system_prompt)
         
-        logger.info(f"Translating to {translateTo} using {translator.model.name}")
+        self._logger.info(f"Translating to {translateTo} using {translator.model.name}")
         
         # Translate the title
         self.title_translated = translator.request(
             Prompter.get_prompt_for_translation(translateTo, self.title)
         )
-        print(self.title_translated)
+        self._logger.info(self.title_translated)
         
         # Translate the content (uncomment when ready)
         # self.text_translated = translator.request(
@@ -123,3 +128,29 @@ class Website:
         # self.translated_links_json = translator.request(
         #     Prompter.get_prompt_for_translation_json(translateTo, self.links_json)
         # )
+
+
+    def parse_links(self, ai_config):  
+        prompt = Prompter.get_prompt_for_links_json("\n".join(str(link) for link in self.website.links))
+        # print(prompt)
+        ai = AI(ai_config, Prompter.system_prompt)
+        ai.request("get links", prompt)
+        self.parsed_links = ai.results.replace("```json", "").replace("```", "")
+        stripped_results = ai.results.strip()
+
+        parsed_data = json.loads(self.parsed_links)
+        # print(parsed_data)
+        # self.results.links = parse_obj_as(List[Link], parsed_data["links"])
+
+    def parse_pages_from_links(self, ai_config, user_prompt):
+        if not self.results.links:
+            raise self.Parsing_Error("Please parse_links() first")
+
+        links = json.loads(self.parsed_links) 
+        result = ""
+        for link in links["links"]:
+            result += Website(link["url"]).parse_text(Format.MARKDOWN, AIConfig.CHATGPT,"")
+        self.with_text_from_links = result
+        ai = AI(ai_config, Prompter.system_prompt)
+        ai.request("analyse page text", Prompter.get_prompt_with(user_prompt, self.with_text_from_links))
+        self.parsed_with_text_from_links = ai.results        

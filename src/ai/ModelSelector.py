@@ -45,8 +45,8 @@ class ModelSelector:
                 'speed': config.Speed.STANDARD
             },
             UseCase.CODING: {
-                'quality': config.Quality.MEDIUM,
-                'speed': config.Speed.STANDARD
+                'quality': config.Quality.HIGH,
+                'speed': config.Speed.FAST
             },
             UseCase.SOLIDITY_CODING: {
                 'quality': config.Quality.HIGH,
@@ -79,7 +79,7 @@ class ModelSelector:
         privacy = config.Privacy.LOCAL if use_local else config.Privacy.EXTERNAL
         quality = quality if quality else use_case_params[use_case]['quality']
         speed = speed if speed else use_case_params[use_case]['speed']
-
+        
         
         # Specific adjustments for different use cases
         if use_case == UseCase.TRANSLATION:
@@ -89,11 +89,11 @@ class ModelSelector:
                 # (Here we could boost specific aspects if needed)
                 pass
                 
-        elif use_case == UseCase.CODING:
-            # For coding, we might prioritize capability over speed
-            if quality != config.Quality.LOW and speed == config.Speed.FAST:
-                # Coding requires precision, so we might override speed for quality
-                speed = config.Speed.STANDARD
+        # elif use_case == UseCase.CODING:
+        #     # For coding, we might prioritize capability over speed
+        #     if quality != config.Quality.LOW and speed == config.Speed.FAST:
+        #         # Coding requires precision, so we might override speed for quality
+        #         speed = config.Speed.STANDARD
         
         # Add more use-case specific adjustments as needed
         model = config.find_model(privacy, quality, speed)

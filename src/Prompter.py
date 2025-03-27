@@ -1,16 +1,6 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
 from enum import Enum
+from src.content_types import Format
 
-
-
-# In[2]:
-
-class Format(Enum):
-    MARKDOWN = "markdown"
-    JSON = "json"
 
 class Prompter:
     system_prompt = """
@@ -32,7 +22,6 @@ class Prompter:
         """Custom exception for format-related errors."""
         pass
 
-    
     @staticmethod
     def get_prompt_for_translation(to_language, text):
         prompt = f"Translate the following text to the {to_language} language."
@@ -92,11 +81,3 @@ class Prompter:
         else:
             raise Prompter.FormatError(f"Format is not supported: {format}")
 
-
-
-# In[3]:
-
-Prompter.get_prompt_for_links(Format.JSON, "asdf")
-
-
-# %%

@@ -58,11 +58,11 @@ class AI:
             # Dictionary of criteria provided
             self._logger.debug(f"Dictionary of criteria provided: {model_param}")
             params = model_param.copy()
-            
+
             self._model = config.find_model(
-                params.get('privacy', config.Privacy.EXTERNAL),
-                params.get('quality', config.Quality.MEDIUM),
-                params.get('speed', config.Speed.STANDARD)
+                params.get('privacy'),
+                params.get('quality'),
+                params.get('speed')
             )
         elif isinstance(model_param, UseCase):
             # UseCase enum provided, use ModelSelector to get params
@@ -101,8 +101,8 @@ class AI:
         self.ai = provider_class(self._model, self._system_prompt, self._logger)
         
     @classmethod
-    def for_use_case(cls, use_case: UseCase, quality: config.Quality = config.Quality.MEDIUM, 
-                     speed: config.Speed = config.Speed.STANDARD, use_local: bool = False, 
+    def for_use_case(cls, use_case: UseCase, quality: config.Quality = None, 
+                     speed: config.Speed = None, use_local: bool = False, 
                      custom_system_prompt: Optional[str] = None, logger: Optional[Logger] = None):
         """
         Factory method to create an AI instance for a specific use case.
@@ -215,8 +215,9 @@ class AI:
         messages.extend(self._build_conversation_history())
         messages.append(self._build_messages(user_prompt, Role.USER))
         response = self.ai.stream(messages)
+        if not response:
+            raise AI_Processing_Error("No response from AI")
         thoughts = Parser.extract_text(response, "<think>", "</think>")
-
         self.thoughts.append(thoughts)
         self.questions.append(user_prompt)
         self.responses.append(response)
@@ -230,6 +231,8 @@ class AI:
         messages.extend(self._build_conversation_history())
         messages.append(self._build_messages(user_prompt, Role.USER))
         response = self.ai.request(messages)
+        if not response:
+            raise AI_Processing_Error("No response from AI")
         thoughts = Parser.extract_text(response, "<think>", "</think>")
         self.thoughts.append(thoughts)
         self.questions.append(user_prompt)

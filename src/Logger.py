@@ -94,10 +94,14 @@ class Logger:
             self._configure_handler(handler)
             
     def _configure_handler(self, handler: logging.Handler) -> None:
-        """Configure a handler with the appropriate formatter and level."""
-        handler.setFormatter(logging.Formatter(self.format.value))
-        handler.setLevel(self.level.value)
-        self._logger.addHandler(handler)
+        """Configure the handler with the correct level and format."""
+        try:
+            handler.setLevel(self.level.value)
+            handler.setFormatter(logging.Formatter(self.format.value))
+            self._logger.addHandler(handler)
+        except PermissionError:
+            # If we can't add the handler due to permissions, continue with NullLogger behavior
+            self._logger = NullLogger()
             
     def add_file_handler(self, filename: str) -> None:
         """Add a file handler to the logger."""
