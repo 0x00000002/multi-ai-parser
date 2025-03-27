@@ -1,7 +1,8 @@
-from typing import List, Dict, Any, Optional, Type, Union
+from typing import List, Dict, Any, Optional, Union
 import src.ai.AIConfig as config
 from src.ai.ModelSelector import ModelSelector, UseCase
 from src.Parser import Parser
+from src.ai.tools.tools_registry import ToolsRegistry
 from enum import Enum
 from src.ai.Errors import AI_API_Key_Error, AI_Processing_Error, AI_Streaming_Error, AI_Setup_Error
 from src.Logger import Logger, NullLogger
@@ -139,7 +140,7 @@ class AI:
             raise AI_Setup_Error("System prompt must be a string")
         self._system_prompt = value
         self._logger.debug(f"System prompt set to: {value}")
-        
+
     @property
     def model(self) -> config.Model:
         return self._model
@@ -193,11 +194,16 @@ class AI:
 
     def _build_messages(self, user_prompt: str, role: Role) -> List[Dict[str, Any]]:
         """Build messages for the AI provider."""
-        is_gemini = self.model.provider_class_name == "Gemini"
-        content_key = "parts" if is_gemini else "content"
-        ai_role = "model" if is_gemini else "assistant"
+        content_key = "content"
+        ai_role = "assistant"
+        content_value = user_prompt
+        
+        if (self.model.provider_class_name == "Gemini"):
+            content_key = "parts"
+            ai_role = "model"
+            content_value = [{"text": user_prompt}]
+
         role_value = ai_role if role == Role.AI else role.value
-        content_value = [{"text": user_prompt}] if is_gemini else user_prompt
         messages = {"role": role_value, content_key: content_value}
         self._logger.debug(f"Message built: {messages}")
         return messages
@@ -236,3 +242,4 @@ class AI:
         self.responses = []
         self.thoughts = []
         self._logger.info("Conversation history has been reset")
+
