@@ -1,11 +1,15 @@
 import pytest
-from src.ai.AI import AI, Role
+from src.ai.base_ai import AIBase as AI, Role
 from src.ai.ModelSelector import ModelSelector, UseCase
 import src.ai.AIConfig as config
 from src.Logger import Logger, NullLogger
 from unittest.mock import Mock, patch
 import os
 from dotenv import load_dotenv
+from src.ai.modules.Anthropic import ClaudeAI
+from src.ai.modules.Google import Gemini
+from src.ai.modules.OpenAI import ChatGPT
+from src.ai.tools.models import ToolCallRequest
 
 # Load environment variables from .env file
 load_dotenv()
@@ -56,11 +60,16 @@ class TestAI:
         ai = AI({"privacy": config.Privacy.EXTERNAL, "quality": config.Quality.HIGH, "speed": config.Speed.FAST}, logger=mock_logger)
         assert isinstance(ai.model, config.Model)
 
-    @patch('src.ai.AI.ClaudeAI')
+    @patch('src.ai.base_ai.ClaudeAI')
     def test_conversation_management(self, mock_claude, mock_logger):
         # Create mock instance with predefined response
         mock_claude_instance = Mock()
-        mock_claude_instance.request.return_value = "Test response"
+        mock_response = ToolCallRequest(
+            tool_calls=[],
+            content="Test response",
+            finish_reason="stop"
+        )
+        mock_claude_instance.request.return_value = mock_response
         mock_claude.return_value = mock_claude_instance
 
         # Create AI instance with mocked ClaudeAI
@@ -82,14 +91,33 @@ class TestAI:
         
         # Verify mock was called correctly
         mock_claude_instance.request.assert_called_once()
+        call_args = mock_claude_instance.request.call_args[0][0]
+        assert isinstance(call_args, list)
+        assert len(call_args) == 1
+        assert call_args[0]["role"] == "user"
+        assert call_args[0]["content"] == "Test prompt"
 
+        # Make another request
         response = ai.request("Test prompt 2")
         assert response == "Test response"
 
+        # Verify conversation was tracked
         assert len(ai.questions) == 2
         assert len(ai.responses) == 2
         assert ai.questions[1] == "Test prompt 2"
         assert ai.responses[1] == "Test response"
+
+        # Verify mock was called correctly for second request
+        assert mock_claude_instance.request.call_count == 2
+        call_args = mock_claude_instance.request.call_args[0][0]
+        assert isinstance(call_args, list)
+        assert len(call_args) == 3  # Previous user message, AI response, and new user message
+        assert call_args[0]["role"] == "user"
+        assert call_args[0]["content"] == "Test prompt"
+        assert call_args[1]["role"] == "assistant"
+        assert call_args[1]["content"] == "Test response"
+        assert call_args[2]["role"] == "user"
+        assert call_args[2]["content"] == "Test prompt 2"
 
     @patch('src.ai.modules.Anthropic.ClaudeAI')
     def test_system_prompt_management(self, mock_claude, mock_logger):
@@ -109,7 +137,7 @@ class TestAI:
         ai.model = config.Model.CLAUDE_SONNET_3_5
         assert ai.model == config.Model.CLAUDE_SONNET_3_5
 
-    @patch('src.ai.AI.ClaudeAI')
+    @patch('src.ai.base_ai.ClaudeAI')
     def test_streaming_response(self, mock_claude, mock_logger):
         # Create mock instance with predefined response
         mock_claude_instance = Mock()

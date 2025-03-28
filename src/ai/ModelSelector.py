@@ -71,7 +71,7 @@ class ModelSelector:
             UseCase.IMAGE_GENERATION: {
                 'quality': config.Quality.HIGH,   
                 'speed': config.Speed.SLOW
-            }
+            },
         }
 
         # Base parameters based on privacy preference

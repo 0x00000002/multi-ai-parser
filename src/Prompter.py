@@ -1,11 +1,15 @@
-from enum import Enum
 from src.content_types import Format
-
 
 class Prompter:
     system_prompt = """
         You are an assistant who reads a text and helps to answer the questions from user.
+        Don't guess the answer, if you don't know the answer, say that you don't know.
         Response in English, format your response in Markdown.
+        """
+
+    prompt_for_tools_finding = """
+        You are an assistant who can find the proper tool to answer the question from user, 
+        based on the user's question and provided list of tools.
         """
 
     prompt_for_links = """
@@ -81,3 +85,9 @@ class Prompter:
         else:
             raise Prompter.FormatError(f"Format is not supported: {format}")
 
+
+        # The list of tools is an object with tool names as keys and tool descriptions as values, like this:
+        #     {
+        #         'TICKET_ORACLE': 'Tool to find a ticket price if user asks about it',
+        #         'INTERNAL_DOCUMENTS_SEARCHER': 'Tool to search for text in the internal documents'
+        #     } 

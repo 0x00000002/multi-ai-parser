@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import src.ai.AIConfig as config
 from src.Logger import Logger
+from src.ai.tools.models import ToolCallRequest, ToolCall
 
 from google import genai
 
@@ -197,6 +198,24 @@ class Gemini:
             else:
                 raise AI_Streaming_Error(error_msg)
 
+    def add_tool_message(self, messages: List[Dict[str, str]], name: str, content: str) -> List[Dict[str, str]]:
+        """
+        Add a tool message to the conversation history in Gemini format.
+        
+        Args:
+            messages: The current conversation history
+            name: The name of the tool
+            content: The content/result of the tool call
+            
+        Returns:
+            List[Dict[str, str]]: Updated conversation history
+        """
+        messages.append({
+            "role": "model",
+            "parts": [{"text": str(content)}]
+        })
+        return messages
+
     def request(self, user_prompt: str, optional_params: Dict[str, Any] = {}) -> str:
         """Make a non-streaming request to the AI model."""
         params = self._get_params(user_prompt, optional_params)
@@ -204,7 +223,22 @@ class Gemini:
         try:
             # Generate the content
             res = self.client.models.generate_content(**params)
-            return res.text
+            
+            # Convert Gemini response to standardized ToolCallRequest
+            tool_calls = []
+            candidate = res.candidates[0]
+            if hasattr(candidate, 'tool_calls') and candidate.tool_calls:
+                for tool_call in candidate.tool_calls:
+                    tool_calls.append(ToolCall(
+                        name=tool_call.name,
+                        arguments=tool_call.arguments
+                    ))
+            
+            return ToolCallRequest(
+                tool_calls=tool_calls,
+                content=candidate.content.parts[0].text,
+                finish_reason=candidate.finish_reason
+            )
         except Exception as e:
             error_msg = f"Error requesting from Gemini {self.model}: {str(e)}"
             if self.logger:

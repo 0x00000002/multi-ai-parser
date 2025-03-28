@@ -15,3 +15,4 @@ class ToolsRegistry:
     @classmethod
     def get_tools(cls, tools: List[Tool], provider: Provider) -> List[Dict]:
         return cls.TOOLS[provider].get_tools(tools)
+    

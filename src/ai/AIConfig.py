@@ -4,6 +4,8 @@ from typing import Optional, Dict, List, Tuple
 from dotenv import load_dotenv; load_dotenv()
 
 
+
+
 class Provider(Enum):
     OPENAI = "ChatGPT"
     ANTHROPIC = "ClaudeAI"
@@ -45,8 +47,6 @@ class Model(Enum):
     # Google models
     GEMINI_2_5_PRO = ("gemini-2.5-pro-exp-03-25", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.HIGH, Speed.FAST)
     GEMINI_1_5_PRO = ("gemini-1.5-pro", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.MEDIUM, Speed.FAST)
-    GEMINI_2_FLASH = ("gemini-2-flash", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.HIGH, Speed.FAST)
-    GEMINI_2_FLASH_LITE = ("gemini-2-flash-lite", Provider.GOOGLE.value, Privacy.EXTERNAL, Quality.MEDIUM, Speed.FAST)
 
 
     def __init__(self, model_id: str, provider_class: str, privacy: Privacy, quality: Quality, speed: Speed):
@@ -144,3 +144,5 @@ def find_model(privacy: Privacy, quality: Quality, speed: Speed) -> Model:
 PRIVACY = Privacy
 QUALITY = Quality
 SPEED = Speed
+
+DEFAULT_TOOL_FINDER_MODEL = Model.CHATGPT_4O_MINI

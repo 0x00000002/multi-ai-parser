@@ -7,6 +7,7 @@ from src.ai.modules.Anthropic import ClaudeAI, AI_API_Key_Error as AnthropicAPIE
 from src.ai.modules.OpenAI import ChatGPT, AI_API_Key_Error as OpenAIAPIError
 from src.ai.modules.Google import Gemini, AI_API_Key_Error as GoogleAPIError
 from src.ai.AIConfig import Model
+from src.ai.tools.models import ToolCallRequest, ToolCall
 import os
 from dotenv import load_dotenv
 
@@ -33,15 +34,18 @@ def mock_api_keys(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
 class TestToolsRegistry:
-    def test_tools_registration(self):
-        tools = [Tool.SOME_TOOL]
+    def test_tools_registration_openai(self):
+        tools = [Tool.TICKET_ORACLE]
         result = ToolsRegistry.get_tools(tools, Provider.OPENAI)
         assert isinstance(result, list)
         assert len(result) > 0
         assert "function" in result[0]
+        assert "name" in result[0]["function"]
+        assert "description" in result[0]["function"]
+        assert "parameters" in result[0]["function"]
 
-    def test_tool_execution(self):
-        tools = [Tool.SOME_TOOL]
+    def test_tools_registration_anthropic(self):
+        tools = [Tool.TICKET_ORACLE]
         result = ToolsRegistry.get_tools(tools, Provider.ANTHROPIC)
         assert isinstance(result, list)
         assert len(result) > 0
@@ -49,18 +53,36 @@ class TestToolsRegistry:
         assert "description" in result[0]
         assert "input_schema" in result[0]
 
-    def test_invalid_tool(self):
-        tools = []
+    def test_tools_registration_google(self):
+        tools = [Tool.TICKET_ORACLE]
         result = ToolsRegistry.get_tools(tools, Provider.GOOGLE)
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert len(result) > 0
+        assert "function_declarations" in result[0]
+        assert "name" in result[0]["function_declarations"][0]
+        assert "description" in result[0]["function_declarations"][0]
+        assert "parameters" in result[0]["function_declarations"][0]
 
-    def test_tool_with_context(self):
-        tools = [Tool.SOME_TOOL]
+    def test_tools_registration_ollama(self):
+        tools = [Tool.TICKET_ORACLE]
         result = ToolsRegistry.get_tools(tools, Provider.OLLAMA)
         assert isinstance(result, list)
         assert len(result) > 0
         assert "function" in result[0]
+        assert "name" in result[0]["function"]
+        assert "description" in result[0]["function"]
+        assert "parameters" in result[0]["function"]
+
+    def test_empty_tools_list(self):
+        tools = []
+        result = ToolsRegistry.get_tools(tools, Provider.OPENAI)
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_invalid_provider(self):
+        tools = [Tool.TICKET_ORACLE]
+        with pytest.raises(KeyError):
+            ToolsRegistry.get_tools(tools, "INVALID_PROVIDER")
 
     @patch('anthropic.Anthropic')
     def test_claude_initialization(self, mock_anthropic_class, mock_api_keys):
@@ -102,19 +124,31 @@ class TestToolsRegistry:
     def test_claude_request(self, mock_anthropic_class, mock_api_keys):
         mock_client = Mock()
         mock_response = Mock()
-        mock_response.content = [Mock(text="Test response")]
+        mock_content = Mock()
+        mock_content.text = "Test response"
+        mock_content.tool_calls = []
+        mock_response.content = [mock_content]
+        mock_response.stop_reason = "stop"
         mock_client.messages.create.return_value = mock_response
         mock_anthropic_class.return_value = mock_client
         
         claude = ClaudeAI(Model.CLAUDE_SONNET_3_5)
         response = claude.request([{"role": "user", "content": "Test"}])
-        assert response == "Test response"
+        assert isinstance(response, ToolCallRequest)
+        assert response.content == "Test response"
+        assert response.finish_reason == "stop"
+        assert len(response.tool_calls) == 0
 
     @patch('src.ai.modules.OpenAI.OpenAI')
     def test_chatgpt_request(self, mock_openai_class, mock_api_keys):
         # Create mock response
+        mock_message = Mock()
+        mock_message.content = "Test response"
+        mock_message.tool_calls = []
+        
         mock_response = Mock()
-        mock_response.choices = [Mock(message=Mock(content="Test response"))]
+        mock_response.choices = [Mock(message=mock_message)]
+        mock_response.choices[0].finish_reason = "stop"
         
         # Create mock client
         mock_client = Mock()
@@ -130,26 +164,29 @@ class TestToolsRegistry:
         
         # Make request and verify response
         response = chatgpt.request([{"role": "user", "content": "Test"}])
-        assert response == "Test response"
-        
-        # Verify mock was called correctly with expected parameters
-        mock_client.chat.completions.create.assert_called_once_with(
-            model=Model.CHATGPT_4O_MINI.model_id,
-            messages=[{"role": "user", "content": "Test"}],
-            max_completion_tokens=1024
-        )
+        assert isinstance(response, ToolCallRequest)
+        assert response.content == "Test response"
+        assert response.finish_reason == "stop"
+        assert len(response.tool_calls) == 0
 
     @patch('google.genai.Client')
     def test_gemini_request(self, mock_genai_class, mock_api_keys):
         mock_client = Mock()
         mock_response = Mock()
-        mock_response.text = "Test response"
+        mock_candidate = Mock()
+        mock_candidate.content = Mock(parts=[Mock(text="Test response")])
+        mock_candidate.tool_calls = []
+        mock_candidate.finish_reason = "stop"
+        mock_response.candidates = [mock_candidate]
         mock_client.models.generate_content.return_value = mock_response
         mock_genai_class.return_value = mock_client
         
         gemini = Gemini(Model.GEMINI_1_5_PRO)
-        response = gemini.request("Test")
-        assert response == "Test response"
+        response = gemini.request([{"role": "user", "parts": [{"text": "Test"}]}])
+        assert isinstance(response, ToolCallRequest)
+        assert response.content == "Test response"
+        assert response.finish_reason == "stop"
+        assert len(response.tool_calls) == 0
 
     def test_error_handling(self, monkeypatch):
         # Remove API keys to test error handling

@@ -6,6 +6,7 @@ import logging
 import src.ai.AIConfig as config
 from openai import OpenAI
 from src.Logger import Logger
+from src.ai.tools.models import ToolCallRequest, ToolCall
 
 
 class OpenAIParams(BaseModel):
@@ -75,13 +76,47 @@ class ChatGPT:
                 self._logger.error(f"OpenAI{self.model}: Error during streaming: {str(e)}")
             raise AI_Streaming_Error(f"OpenAI{self.model}: Error during streaming: {str(e)}")
 
+    def add_tool_message(self, messages: List[Dict[str, str]], name: str, content: str) -> List[Dict[str, str]]:
+        """
+        Add a tool message to the conversation history in ChatGPT format.
+        
+        Args:
+            messages: The current conversation history
+            name: The name of the tool
+            content: The content/result of the tool call
+            
+        Returns:
+            List[Dict[str, str]]: Updated conversation history
+        """
+        messages.append({
+            "role": "function",
+            "name": name,
+            "content": str(content)
+        })
+        return messages
+
     def request(self, messages, optional_params: Dict[str, Any] = {}):
         """Make a non-streaming request to the AI model."""
         params = self._get_params(messages, optional_params)
         
         try:
             response = self.client.chat.completions.create(**params)    
-            return response.choices[0].message.content
+            
+            # Convert OpenAI response to standardized ToolCallRequest
+            tool_calls = []
+            message = response.choices[0].message
+            if hasattr(message, 'tool_calls') and message.tool_calls:
+                for tool_call in message.tool_calls:
+                    tool_calls.append(ToolCall(
+                        name=tool_call.function.name,
+                        arguments=tool_call.function.arguments
+                    ))
+            
+            return ToolCallRequest(
+                tool_calls=tool_calls,
+                content=message.content,
+                finish_reason=response.choices[0].finish_reason
+            )
         except Exception as e:
             if self._logger:
                 self._logger.error(f"OpenAI{self.model}: Error during request: {str(e)}")

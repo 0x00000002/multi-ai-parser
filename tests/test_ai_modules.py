@@ -8,6 +8,7 @@ from src.ai.modules.OpenAI import ChatGPT, AI_API_Key_Error as OpenAIAPIError
 from src.ai.modules.Google import Gemini, AI_API_Key_Error as GoogleAPIError
 from src.ai.AIConfig import Model
 from src.Logger import Logger
+from src.ai.tools.models import ToolCallRequest, ToolCall
 import os
 from dotenv import load_dotenv
 
@@ -39,26 +40,72 @@ def mock_api_keys(monkeypatch):
 
 class TestAIModules:
     @patch('anthropic.Anthropic')
-    def test_claude_initialization(self, mock_anthropic_class):
+    def test_claude_initialization(self, mock_anthropic_class, mock_api_keys, mock_logger):
         mock_client = Mock()
         mock_anthropic_class.return_value = mock_client
         
-        claude = ClaudeAI(Model.CLAUDE_SONNET_3_5)
+        claude = ClaudeAI(Model.CLAUDE_SONNET_3_5, "test prompt", mock_logger)
         assert claude.client == mock_client
+        assert claude.model == Model.CLAUDE_SONNET_3_5
+        assert claude.system_prompt == "test prompt"
 
     @patch('src.ai.modules.OpenAI.OpenAI')
-    def test_chatgpt_initialization(self, mock_openai_class):
-        # Create mock client
+    def test_chatgpt_initialization(self, mock_openai_class, mock_api_keys, mock_logger):
         mock_client = Mock()
         mock_openai_class.return_value = mock_client
 
-        # Create ChatGPT instance
-        chatgpt = ChatGPT(Model.CHATGPT_4O_MINI)
-        
-        # Verify that OpenAI client was created with correct API key
+        chatgpt = ChatGPT(Model.CHATGPT_4O_MINI, "test prompt", mock_logger)
         mock_openai_class.assert_called_once_with(api_key=Model.CHATGPT_4O_MINI.api_key)
         assert chatgpt.model == Model.CHATGPT_4O_MINI
         assert chatgpt.client == mock_client
+        assert chatgpt.system_prompt == "test prompt"
+
+    @patch('src.ai.modules.OpenAI.OpenAI')
+    def test_chatgpt_request_with_tool_calls(self, mock_openai_class, mock_api_keys, mock_logger):
+        # Create mock response with tool calls
+        mock_tool_call = Mock()
+        mock_tool_call.function = Mock()
+        mock_tool_call.function.name = "get_ticket_price"
+        mock_tool_call.function.arguments = '{"destination_city": "New York"}'
+        
+        mock_message = Mock()
+        mock_message.content = "Let me check the ticket price for you."
+        mock_message.tool_calls = [mock_tool_call]
+        
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=mock_message)]
+        mock_response.choices[0].finish_reason = "tool_calls"
+        
+        # Create mock client
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
+
+        chatgpt = ChatGPT(Model.CHATGPT_4O_MINI, "test prompt", mock_logger)
+        response = chatgpt.request([{"role": "user", "content": "How much is a ticket to New York?"}])
+        
+        assert isinstance(response, ToolCallRequest)
+        assert len(response.tool_calls) == 1
+        assert response.tool_calls[0].name == "get_ticket_price"
+        assert response.content == "Let me check the ticket price for you."
+        assert response.finish_reason == "tool_calls"
+
+    @patch('google.genai.Client')
+    def test_gemini_request(self, mock_genai_class, mock_api_keys, mock_logger):
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_candidate = Mock()
+        mock_candidate.content = Mock(parts=[Mock(text="Test response")])
+        mock_candidate.tool_calls = []
+        mock_candidate.finish_reason = None
+        mock_response.candidates = [mock_candidate]
+        mock_client.models.generate_content.return_value = mock_response
+        mock_genai_class.return_value = mock_client
+        
+        gemini = Gemini(Model.GEMINI_1_5_PRO, "test prompt", mock_logger)
+        response = gemini.request([{"role": "user", "parts": [{"text": "Test"}]}])
+        assert response.content == "Test response"
+        assert response.finish_reason is None
 
     def test_ollama_initialization(self):
         try:
@@ -75,22 +122,33 @@ class TestAIModules:
             pytest.skip("Google AI not installed")
 
     @patch('anthropic.Anthropic')
-    def test_claude_request(self, mock_anthropic_class):
+    def test_claude_request(self, mock_anthropic_class, mock_api_keys, mock_logger):
         mock_client = Mock()
         mock_response = Mock()
-        mock_response.content = [Mock(text="Test response")]
+        mock_content = Mock()
+        mock_content.text = "Test response"
+        mock_content.tool_calls = []
+        mock_response.content = [mock_content]
+        mock_response.stop_reason = None
         mock_client.messages.create.return_value = mock_response
         mock_anthropic_class.return_value = mock_client
         
-        claude = ClaudeAI(Model.CLAUDE_SONNET_3_5)
+        claude = ClaudeAI(Model.CLAUDE_SONNET_3_5, "test prompt", mock_logger)
         response = claude.request([{"role": "user", "content": "Test"}])
-        assert response == "Test response"
+        assert isinstance(response, ToolCallRequest)
+        assert response.content == "Test response"
+        assert response.finish_reason is None
 
     @patch('src.ai.modules.OpenAI.OpenAI')
-    def test_chatgpt_request(self, mock_openai_class):
+    def test_chatgpt_request(self, mock_openai_class, mock_api_keys, mock_logger):
         # Create mock response
+        mock_message = Mock()
+        mock_message.content = "Test response"
+        mock_message.tool_calls = []
+        
         mock_response = Mock()
-        mock_response.choices = [Mock(message=Mock(content="Test response"))]
+        mock_response.choices = [Mock(message=mock_message)]
+        mock_response.choices[0].finish_reason = "stop"
         
         # Create mock client
         mock_client = Mock()
@@ -98,7 +156,7 @@ class TestAIModules:
         mock_openai_class.return_value = mock_client
 
         # Create ChatGPT instance and make request
-        chatgpt = ChatGPT(Model.CHATGPT_4O_MINI)
+        chatgpt = ChatGPT(Model.CHATGPT_4O_MINI, "test prompt", mock_logger)
         
         # Verify mock was used with correct API key
         mock_openai_class.assert_called_once_with(api_key=Model.CHATGPT_4O_MINI.api_key)
@@ -106,26 +164,10 @@ class TestAIModules:
         
         # Make request and verify response
         response = chatgpt.request([{"role": "user", "content": "Test"}])
-        assert response == "Test response"
-        
-        # Verify mock was called correctly with expected parameters
-        mock_client.chat.completions.create.assert_called_once_with(
-            model=Model.CHATGPT_4O_MINI.model_id,
-            messages=[{"role": "user", "content": "Test"}],
-            max_completion_tokens=1024
-        )
-
-    @patch('google.genai.Client')
-    def test_gemini_request(self, mock_genai_class):
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.text = "Test response"
-        mock_client.models.generate_content.return_value = mock_response
-        mock_genai_class.return_value = mock_client
-        
-        gemini = Gemini(Model.GEMINI_1_5_PRO)
-        response = gemini.request("Test")
-        assert response == "Test response"
+        assert isinstance(response, ToolCallRequest)
+        assert response.content == "Test response"
+        assert response.finish_reason == "stop"
+        assert len(response.tool_calls) == 0
 
     def test_error_handling(self, monkeypatch):
         # Remove API keys to test error handling

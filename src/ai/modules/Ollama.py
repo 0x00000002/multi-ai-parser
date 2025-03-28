@@ -9,6 +9,7 @@ from enum import Enum
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from src.Logger import Logger
+from src.ai.tools.models import ToolCallRequest, ToolCall
 
 import ollama
 import src.ai.AIConfig as config
@@ -80,14 +81,46 @@ class Ollama:
                 self.logger.error(f"Ollama{self.model}: Error during streaming: {str(e)}")
             raise AI_Streaming_Error(f"Ollama {self.model}: Error during streaming: {str(e)}")
 
+    def add_tool_message(self, messages: List[Dict[str, str]], name: str, content: str) -> List[Dict[str, str]]:
+        """
+        Add a tool message to the conversation history in Ollama format.
+        
+        Args:
+            messages: The current conversation history
+            name: The name of the tool
+            content: The content/result of the tool call
+            
+        Returns:
+            List[Dict[str, str]]: Updated conversation history
+        """
+        messages.append({
+            "role": "tool",
+            "name": name,
+            "content": str(content)
+        })
+        return messages
+
     def request(self, messages, optional_params: Dict[str, Any] = {}):
         """Make a non-streaming request to the AI model."""
         params = self._get_params(messages, optional_params)
         
         try:
             res = self.client.chat(**params)
-            response = res.get("message", {}).get("content", "")
-            return response
+            
+            # Convert Ollama response to standardized ToolCallRequest
+            tool_calls = []
+            if isinstance(res, dict) and 'tool_calls' in res and res['tool_calls']:
+                for tool_call in res['tool_calls']:
+                    tool_calls.append(ToolCall(
+                        name=tool_call['name'],
+                        arguments=tool_call['arguments']
+                    ))
+            
+            return ToolCallRequest(
+                tool_calls=tool_calls,
+                content=res['message']['content'],
+                finish_reason=res.get('finish_reason')
+            )
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ollama{self.model}: Error during request: {str(e)}")

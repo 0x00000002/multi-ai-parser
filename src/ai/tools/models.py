@@ -16,3 +16,13 @@ class Function(BaseModel):
     name: str
     description: str
     parameters: Parameters
+
+class ToolCall(BaseModel):
+    name: str
+    arguments: str
+
+class ToolCallRequest(BaseModel):
+    """Standardized tool call request that can be returned by any AI provider"""
+    tool_calls: List[ToolCall]
+    content: str
+    finish_reason: Optional[str] = None
