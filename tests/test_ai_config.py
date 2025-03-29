@@ -1,7 +1,7 @@
 import pytest
-from src.ai.AI import AI, Role
-from src.ai.ModelSelector import ModelSelector, UseCase
-import src.ai.AIConfig as config
+from src.ai.enhanced_ai import AI, Role
+from src.ai.model_selector import ModelSelector, UseCase
+import src.ai.ai_config as config
 from src.Logger import Logger, NullLogger
 from unittest.mock import Mock, patch
 import os

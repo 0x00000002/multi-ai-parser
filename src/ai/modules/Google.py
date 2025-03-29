@@ -3,12 +3,12 @@
 
 # In[1]:
 import os
-from src.ai.Errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
+from src.ai.errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
 from dotenv import load_dotenv
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Any, Optional
-import src.ai.AIConfig as config
+import src.ai.ai_config as config
 from src.Logger import Logger
 from src.ai.tools.models import ToolCallRequest, ToolCall
 
@@ -70,8 +70,7 @@ class GeminiParams(BaseModel):
         description="Configuration parameters for model generation"
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 class Gemini:
     def __init__(self, model: config.Model = config.Model.GEMINI_1_5_PRO, system_prompt: str = "", logger: Optional[Logger] = None):
@@ -117,56 +116,20 @@ class Gemini:
         
         return contents
 
-    def _get_params(self, contents: List[Dict[str, Any]], optional_params: Dict[str, Any] = {}) -> Dict[str, Any]:
-        """Get the parameters for the request.
-        
-        Args:
-            user_prompt: The user's input text
-            optional_params: Additional parameters to customize the request
-        
-        Returns:
-            Dict containing the formatted parameters for the Gemini API request
-        """
-        # Build conversation with history if available
-        
-        
-        # Initialize the config with default values
-        config = GeminiConfig().dict()
-        
-        # Update config with any custom generation parameters
-        if 'config' in optional_params:
-            user_config = optional_params.pop('config', {})
-            # Only update with valid config parameters
-            valid_config_params = set(GeminiConfig.__fields__.keys())
-            config.update({
-                k: v for k, v in user_config.items() 
-                if k in valid_config_params and v is not None
-            })
-        
-        # Construct base params
+    def _get_params(self, messages, optional_params: Dict[str, Any] = {}) -> dict:
+        """Get the parameters for the request."""
+        # Construct params dict with only non-None values
         params = {
-            "contents": contents,
             "model": self.model.model_id,
-            "config": config,
+            "contents": messages,
+            **{k: v for k, v in optional_params.items() if k in GeminiParams.model_fields and v is not None}
         }
         
-        # Add system instruction if provided
-        if "system_instruction" in optional_params:
-            params["system_instruction"] = optional_params.pop("system_instruction")
+        # Create and validate with Pydantic model directly
+        validated_params = GeminiParams(**params)
         
-        # Add safety settings if provided
-        if "safety_settings" in optional_params:
-            params["safety_settings"] = optional_params.pop("safety_settings")
-        
-        # Add any remaining valid parameters
-        valid_params = set(GeminiParams.__fields__.keys()) - {"model", "contents"}
-        params.update({
-            k: v for k, v in optional_params.items() 
-            if k in valid_params and v is not None
-        })
-        
-        return params
-        
+        # Convert to dict, excluding None values
+        return validated_params.model_dump(exclude_none=True)
 
     def stream(self, user_prompt: str, optional_params: Dict[str, Any] = {}) -> str:
         """Stream the AI response back."""

@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 from src.Logger import Logger
 from src.ai.tools.tools_list import Tool
 import json

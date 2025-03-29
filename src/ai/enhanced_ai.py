@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional, Union
-import src.ai.AIConfig as config
-from src.ai.ModelSelector import UseCase
-from src.ai.Errors import AI_Processing_Error
+import src.ai.ai_config as config
+from src.ai.model_selector import UseCase
+from src.ai.errors import AI_Processing_Error
 from src.Logger import Logger, NullLogger
 from src.ai.tools.tools_list import Tool
 from src.Parser import Parser
@@ -37,7 +37,7 @@ class AI(AIBase):
             speed=speed,
             use_local=use_local,
             system_prompt=system_prompt,
-            logger=logger
+            logger=logger or NullLogger()
         )
         
         # Add tool finder properties

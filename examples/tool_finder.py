@@ -1,7 +1,7 @@
 # Example usage of enhanced AI with ToolFinder integration
 
-from src.ai.AIConfig import Model, Quality, Speed
-from src.ai.ModelSelector import UseCase
+from src.ai.ai_config import Model, Quality, Speed
+from src.ai.model_selector import UseCase
 from src.Logger import LoggerFactory, LoggingLevel, LogFormat
 import logging
 from src.ai.tools.tool_finder import ToolFinder
@@ -11,15 +11,16 @@ from src.ai.enhanced_ai import AI
 
 # Create a logger
 logging.getLogger().handlers = []    
-logger = LoggerFactory.get_logger("tool_finder", LoggingLevel.DEBUG, LogFormat.SIMPLE)
+logger = LoggerFactory.get_logger("logger", LoggingLevel.INFO, LogFormat.SIMPLE)
+debugger = LoggerFactory.get_logger("debugger", LoggingLevel.DEBUG, LogFormat.SIMPLE)
 
 # Example 1: Create AI with auto tool finding
 def example_auto_tool_finding():
     # Create main AI using the enhanced AI class
     main_ai = AI(
-        model_param=Model.OLLAMA_GEMMA3,
+        model_param=Model.GEMINI_2_5_PRO,
         system_prompt="You are a helpful assistant. Don't guess the answer, if you don't know the answer, say that you don't know.",
-        # logger=logger
+        logger=logger
     )
     
     # Enable automatic tool finding (automatically creates a ToolFinder)

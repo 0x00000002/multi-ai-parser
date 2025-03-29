@@ -1,7 +1,6 @@
-from src.ai.AI import AI
-from src.ai.AIConfig import Quality, Speed, Model
-from src.ai.ModelSelector import ModelSelector, UseCase
-from src.Website import Website
+from src.ai.enhanced_ai import AI
+from src.ai.ai_config import Quality, Model
+from src.ai.model_selector import UseCase
 from src.Logger import LoggerFactory, LoggingLevel, LogFormat
 import logging  # Add this import
 
@@ -9,7 +8,7 @@ import logging  # Add this import
 def main():
 
     logging.getLogger().handlers = []    
-    simple_logger = LoggerFactory.get_logger("translator", LoggingLevel.INFO, LogFormat.SIMPLE)
+    simple_logger = LoggerFactory.get_logger("logger", LoggingLevel.INFO, LogFormat.SIMPLE)
     
     coding_ai = AI.for_use_case(
         use_case=UseCase.CODING,

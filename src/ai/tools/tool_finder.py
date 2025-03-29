@@ -1,8 +1,8 @@
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Optional
 from src.ai.tools.tools_list import Tool
 from src.ai.tools.tools_registry import ToolsRegistry
 from src.Prompter import Prompter
-import src.ai.AIConfig as config
+import src.ai.ai_config as config
 from src.Logger import Logger, NullLogger
 import json
 

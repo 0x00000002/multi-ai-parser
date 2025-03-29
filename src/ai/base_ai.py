@@ -1,8 +1,8 @@
 from typing import List, Dict, Any, Optional, Union
-import src.ai.AIConfig as config
-from src.ai.ModelSelector import ModelSelector, UseCase
+import src.ai.ai_config as config
+from src.ai.model_selector import ModelSelector, UseCase
 from src.Parser import Parser
-from src.ai.Errors import AI_API_Key_Error, AI_Processing_Error, AI_Streaming_Error, AI_Setup_Error
+from src.ai.errors import AI_Processing_Error, AI_Setup_Error
 from src.Logger import Logger, NullLogger
 from enum import Enum
 

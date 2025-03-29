@@ -1,9 +1,5 @@
 import pytest
 from src.Parser import Parser
-from src.Logger import Logger, LoggingLevel, LogFormat, NullLogger
-import logging
-import os
-from unittest.mock import patch, Mock
 
 class TestParser:
     def test_extract_text(self):

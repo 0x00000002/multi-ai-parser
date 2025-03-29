@@ -3,7 +3,7 @@
 
 # In[1]:
 import os
-from src.ai.Errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
+from src.ai.errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
 from dotenv import load_dotenv
 from enum import Enum
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ from src.Logger import Logger
 from src.ai.tools.models import ToolCallRequest, ToolCall
 
 import ollama
-import src.ai.AIConfig as config
+import src.ai.ai_config as config
 
 
 # In[2]:

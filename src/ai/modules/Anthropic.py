@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import src.ai.AIConfig as config
+import src.ai.ai_config as config
 from src.Logger import Logger, NullLogger
 import anthropic
 from src.ai.tools.models import ToolCallRequest, ToolCall

@@ -1,6 +1,6 @@
 from enum import Enum, auto
-from typing import Dict, Any, Optional
-import src.ai.AIConfig as config
+from typing import Optional
+import src.ai.ai_config as config
 
 class UseCase(Enum):
     """Common use cases for AI models across the application."""

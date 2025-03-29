@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 from src.ai.tools.tools_list import Tool
 
 class ToolPromptBuilder:

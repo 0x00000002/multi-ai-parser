@@ -6,7 +6,7 @@ from src.ai.tools.tools_list import Tool
 class Formatable(BaseModel):
     @classmethod
     def get_tools(cls, tools: List[Tool]) -> List[Dict]:
-        return [cls.from_base(tool.value[0]).dict() for tool in tools]
+        return [cls.from_base(tool.value[0]).model_dump() for tool in tools]
     
     @classmethod
     def from_base(cls, base_function: Function):
@@ -75,7 +75,7 @@ class Google_Function(Formatable):
                     name=tool.value[0].name,
                     description=tool.value[0].description,
                     parameters=tool.value[0].parameters
-                ).dict()
+                ).model_dump()
             )
         
         # Return as a single item in the list

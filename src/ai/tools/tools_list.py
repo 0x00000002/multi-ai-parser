@@ -1,7 +1,6 @@
 from enum import Enum
 from src.ai.tools.tiicket_price import ticket_price_tool, get_ticket_price
-from typing import Optional, Tuple, Callable, Dict, List
-from src.ai.tools.models import Function
+from typing import Dict, List
 
 class Tool(Enum):
     TICKET_ORACLE = (ticket_price_tool, get_ticket_price)

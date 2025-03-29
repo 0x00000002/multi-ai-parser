@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from src.ai.AI import AI
-from src.ai.AIConfig import Quality, Speed, Privacy
+from src.ai.enhanced_ai import AI
+from src.ai.ai_config import Quality, Speed, Privacy
 from src.Website import Website
-from src.ai.ModelSelector import UseCase
+from src.ai.model_selector import UseCase
 
 # Example 1: Using Website with shared ModelSelector and AIConfig enums
 website = Website("https://example.com")

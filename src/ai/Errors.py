@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 class AI_API_Key_Error(Exception):
     """Exception raised when there is an issue with the API key."""
     pass

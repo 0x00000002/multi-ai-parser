@@ -1,7 +1,6 @@
-from src.ai.AI import AI
-from src.ai.AIConfig import Quality, Speed, Model, Privacy
-from src.ai.ModelSelector import UseCase
-from src.Website import Website
+from src.ai.enhanced_ai import AI
+from src.ai.ai_config import Quality, Speed, Model, Privacy
+from src.ai.model_selector import UseCase
 from src.Logger import LoggerFactory, LoggingLevel, LogFormat
 import logging  # Add this import
 
@@ -54,17 +53,6 @@ def main():
     code_result = coding_ai.request("Write a Python function that checks if a string is a palindrome")
     print(code_result)
 
-    # Example 5: Create AI instance for code generation
-    simple_logger.info("\n------------------------------- Example 5: -------------------------------")
-    coding_ai = AI.for_use_case(
-        use_case=UseCase.SOLIDITY_CODING,
-        quality=Quality.MEDIUM,
-        use_local=True  # Use local models for coding
-    )
-    assert coding_ai.model == Model.OLLAMA_GEMMA3
-    coding_ai.logger = simple_logger
-    code_result = coding_ai.request("Write a Solidity function that checks if a string is a palindrome")
-    print(code_result)
 
 
 if __name__ == "__main__":

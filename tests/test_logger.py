@@ -1,8 +1,6 @@
 import pytest
-from src.Parser import Parser
 from src.Logger import Logger, LoggingLevel, LogFormat, NullLogger
 import logging
-import os
 from unittest.mock import patch, Mock
 
 class TestLogger:

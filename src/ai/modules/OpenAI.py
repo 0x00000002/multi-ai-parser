@@ -1,9 +1,8 @@
-from src.ai.Errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
+from src.ai.errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import logging
 
-import src.ai.AIConfig as config
+import src.ai.ai_config as config
 from openai import OpenAI
 from src.Logger import Logger
 from src.ai.tools.models import ToolCallRequest, ToolCall
@@ -47,14 +46,13 @@ class ChatGPT:
         params = {
             "model": self.model.model_id,
             "messages": messages,
-            **{k: v for k, v in optional_params.items() if k in OpenAIParams.__fields__ and v is not None}
+            **{k: v for k, v in optional_params.items() if k in OpenAIParams.model_fields and v is not None}
         }
         
         # Create and validate with Pydantic model directly
         validated_params = OpenAIParams(**params)
         
-        # Convert to dict, excluding None values
-        return validated_params.model_dump(exclude_none=True) if hasattr(validated_params, 'model_dump') else validated_params.dict(exclude_none=True)
+        return validated_params.model_dump(exclude_none=True)
 
 
     def stream(self, messages, optional_params: Dict[str, Any] = {}):

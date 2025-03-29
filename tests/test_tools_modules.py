@@ -2,12 +2,12 @@ import pytest
 from unittest.mock import Mock, patch
 from src.ai.tools.tools_registry import ToolsRegistry
 from src.ai.tools.tools_list import Tool
-from src.ai.AIConfig import Provider
+from src.ai.ai_config import Provider
 from src.ai.modules.Anthropic import ClaudeAI, AI_API_Key_Error as AnthropicAPIError
 from src.ai.modules.OpenAI import ChatGPT, AI_API_Key_Error as OpenAIAPIError
 from src.ai.modules.Google import Gemini, AI_API_Key_Error as GoogleAPIError
-from src.ai.AIConfig import Model
-from src.ai.tools.models import ToolCallRequest, ToolCall
+from src.ai.ai_config import Model
+from src.ai.tools.models import ToolCallRequest
 import os
 from dotenv import load_dotenv
 

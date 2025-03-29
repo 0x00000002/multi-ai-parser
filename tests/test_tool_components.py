@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from src.ai.tools.tool_executor import ToolExecutor
 from src.ai.tools.tool_call_parser import ToolCallParser
 from src.ai.tools.tool_prompt_builder import ToolPromptBuilder

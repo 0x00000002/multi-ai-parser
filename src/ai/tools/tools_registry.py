@@ -1,5 +1,5 @@
 from typing import Dict, List, ClassVar  
-from src.ai.AIConfig import Provider
+from src.ai.ai_config import Provider
 
 from src.ai.tools.tools_types import OpenAI_Function, Anthropic_Function, Google_Function, Ollama_Function
 from src.ai.tools.tools_list import Tool
