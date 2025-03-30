@@ -4,7 +4,7 @@ from src.ai.modules.Anthropic import ClaudeAI, AI_API_Key_Error as AnthropicAPIE
 from src.ai.modules.OpenAI import ChatGPT, AI_API_Key_Error as OpenAIAPIError
 from src.ai.modules.Google import Gemini, AI_API_Key_Error as GoogleAPIError
 from src.ai.ai_config import Model
-from src.Logger import Logger
+from src.logger import Logger
 from src.ai.tools.models import ToolCallRequest
 import os
 from dotenv import load_dotenv

@@ -2,7 +2,7 @@
 
 from src.ai.ai_config import Model, Quality, Speed
 from src.ai.model_selector import UseCase
-from src.Logger import LoggerFactory, LoggingLevel, LogFormat
+from src.logger import LoggerFactory, LoggingLevel, LogFormat
 import logging
 from src.ai.tools.tool_finder import ToolFinder
 

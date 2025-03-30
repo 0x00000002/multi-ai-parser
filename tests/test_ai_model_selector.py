@@ -1,7 +1,7 @@
 import pytest
 from src.ai.model_selector import ModelSelector, UseCase
 import src.ai.ai_config as config
-from src.Logger import Logger
+from src.logger import Logger
 from unittest.mock import Mock
 import os
 from dotenv import load_dotenv

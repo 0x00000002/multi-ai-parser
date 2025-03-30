@@ -1,21 +1,12 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-import os
 from src.ai.errors import AI_Processing_Error, AI_Streaming_Error, AI_API_Key_Error
-from dotenv import load_dotenv
-from enum import Enum
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-from src.Logger import Logger
+from src.logger import Logger
 from src.ai.tools.models import ToolCallRequest, ToolCall
 
 import ollama
 import src.ai.ai_config as config
 
-
-# In[2]:
 class OllamaParams(BaseModel):
     model: str
     stream: Optional[bool] = None

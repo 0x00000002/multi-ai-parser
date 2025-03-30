@@ -3,7 +3,7 @@
 
 # from src.ai.AI import AI
 # from src.ModelSelector import ModelSelector, UseCase, Quality, Speed
-# from src.Website import Website
+# from src.website import Website
 
 # Then you could import with:
 # from src import AI, ModelSelector, UseCase

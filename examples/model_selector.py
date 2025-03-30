@@ -1,7 +1,7 @@
 from src.ai.enhanced_ai import AI
 from src.ai.ai_config import Quality, Speed, Model, Privacy
 from src.ai.model_selector import UseCase
-from src.Logger import LoggerFactory, LoggingLevel, LogFormat
+from src.logger import LoggerFactory, LoggingLevel, LogFormat
 import logging  # Add this import
 
 # Example usage with shared model selection

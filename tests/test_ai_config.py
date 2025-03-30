@@ -2,7 +2,7 @@ import pytest
 from src.ai.enhanced_ai import AI, Role
 from src.ai.model_selector import ModelSelector, UseCase
 import src.ai.ai_config as config
-from src.Logger import Logger, NullLogger
+from src.logger import Logger, NullLogger
 from unittest.mock import Mock, patch
 import os
 from dotenv import load_dotenv

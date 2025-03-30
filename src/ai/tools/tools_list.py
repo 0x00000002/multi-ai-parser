@@ -6,11 +6,7 @@ class Tool(Enum):
     TICKET_ORACLE = (ticket_price_tool, get_ticket_price)
 
     @classmethod
-    def get_tools(cls) -> List[Dict[str, str]]:
-        return [tool.value[0].dict() for tool in cls]
-
-    @classmethod
-    def get_tools_descriptions(cls) -> Dict[str, str]:
+    def list_tools(cls) -> Dict[str, str]:
         tools_dict = {}
         for tool in Tool:
             tools_dict[tool.name] = tool.value[0].description     

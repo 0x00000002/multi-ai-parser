@@ -1,13 +1,14 @@
 from typing import List, Dict, Any, Optional, Union
-import src.ai.ai_config as config
+from src.ai.ai_config import Model, Quality, Speed, DEFAULT_TOOL_FINDER_MODEL
 from src.ai.model_selector import UseCase
 from src.ai.errors import AI_Processing_Error
-from src.Logger import Logger, NullLogger
+from src.logger import Logger, NullLogger
 from src.ai.tools.tools_list import Tool
-from src.Parser import Parser
+from src.parser import Parser
 from src.ai.tools.tool_executor import ToolExecutor
 from src.ai.tools.tool_call_parser import ToolCallParser
 from src.ai.tools.tool_prompt_builder import ToolPromptBuilder
+from src.ai.tools.tools_manager import ToolManager
 import json
 
 # Import the base class and ToolFinder
@@ -21,9 +22,9 @@ class AI(AIBase):
     """
     
     def __init__(self, 
-                 model_param: Union[config.Model, Dict[str, Any], UseCase], 
-                 quality: Optional[config.Quality] = None,
-                 speed: Optional[config.Speed] = None,
+                 model_param: Union[Model, Dict[str, Any], UseCase], 
+                 quality: Optional[Quality] = None,
+                 speed: Optional[Speed] = None,
                  use_local: bool = False,
                  system_prompt: str = "",
                  logger: Optional[Logger] = None):
@@ -40,13 +41,8 @@ class AI(AIBase):
             logger=logger or NullLogger()
         )
         
-        # Add tool finder properties
-        self._tool_finder = None
-        self._auto_find_tools = False
-        
-        # Initialize tool-related components
-        self._tool_executor = ToolExecutor(self._logger)
-        self._tool_call_parser = ToolCallParser(self._logger)
+        # Initialize tool manager
+        self._tool_manager = ToolManager(self._logger)
     
     def set_tool_finder(self, tool_finder: ToolFinder) -> None:
         """
@@ -55,21 +51,16 @@ class AI(AIBase):
         Args:
             tool_finder: A ToolFinder instance to use
         """
-        self._tool_finder = tool_finder
-        self._logger.info("ToolFinder has been set")
+        self._tool_manager.set_tool_finder(tool_finder)
     
-    def create_tool_finder(self, model: config.Model = config.DEFAULT_TOOL_FINDER_MODEL) -> None:
+    def create_tool_finder(self, model: Model = DEFAULT_TOOL_FINDER_MODEL) -> None:
         """
         Create and set a new tool finder instance.
         
         Args:
             model: The model to use for tool finding
         """
-        self._tool_finder = ToolFinder(
-            model=model,
-            logger=self._logger
-        )
-        self._logger.info(f"Created and set ToolFinder using {model.name}")
+        self._tool_manager.create_tool_finder(model)
     
     def enable_auto_tool_finding(self, enabled: bool = True) -> None:
         """
@@ -78,11 +69,7 @@ class AI(AIBase):
         Args:
             enabled: Whether to enable automatic tool finding
         """
-        if self._tool_finder is None:
-            self.create_tool_finder()
-                        
-        self._auto_find_tools = enabled
-        self._logger.info(f"Auto tool finding {'enabled' if enabled else 'disabled'}")
+        self._tool_manager.enable_auto_tool_finding(enabled)
     
     def find_tools(self, user_prompt: str) -> List[Tool]:
         """
@@ -94,50 +81,64 @@ class AI(AIBase):
         Returns:
             List of Tool enum values that are relevant
         """
-        if self._tool_finder is None:
-            self.create_tool_finder()
-            
-        return self._tool_finder.find_tools(user_prompt)
-    
-    def _get_tool_message_role(self) -> str:
-        """
-        Get the appropriate role for tool messages based on the provider.
-        
-        Returns:
-            str: The role to use for tool messages
-        """
-        if self.model.provider_class_name == "Ollama":
-            return "tool"
-        elif self.model.provider_class_name == "ClaudeAI":
-            return "assistant"
-        elif self.model.provider_class_name == "ChatGPT":
-            return "function"
-        else:
-            return "assistant"  # Default fallback
+        return self._tool_manager.find_tools(user_prompt, self.questions[-3:])
 
-    def _format_tool_message(self, name: str, content: str) -> Dict[str, str]:
+    def _prepare_request(self, user_prompt: str) -> tuple[List[Dict[str, Any]], str]:
         """
-        Format a tool message according to the provider's requirements.
+        Prepare the request by finding tools and building messages.
         
         Args:
-            name: The name of the tool
-            content: The content/result of the tool call
+            user_prompt: The user's original request
             
         Returns:
-            Dict[str, str]: The formatted message
+            Tuple of (messages list, enhanced prompt)
         """
-        role = self._get_tool_message_role()
-        message = {
-            "role": role,
-            "content": str(content)
-        }
+        # Build conversation history
+        messages = []
+        messages.extend(self._build_conversation_history())
         
-        # Add name field only for providers that support it
-        if role in ["function", "tool"]:
-            message["name"] = name
-            
-        return message
+        # Find relevant tools if auto-finding is enabled
+        relevant_tools = []
+        if self._tool_manager._auto_find_tools:
+            relevant_tools = self._tool_manager.find_tools(user_prompt, self.questions[-3:])
+        
+        # Enhance the prompt with tool information if tools were found
+        enhanced_prompt = user_prompt
+        if relevant_tools:
+            enhanced_prompt = ToolPromptBuilder.build_enhanced_prompt(user_prompt, relevant_tools)
+            self._logger.debug(f"Enhanced prompt with tools: {enhanced_prompt}")
+        
+        # Add the current message
+        messages.append(self._build_messages(enhanced_prompt, Role.USER))
+        
+        return messages, enhanced_prompt
 
+    def _handle_tool_calls(self, messages: List[Dict[str, Any]], response: Any) -> Any:
+        """
+        Handle any tool calls in the response.
+        
+        Args:
+            messages: The current conversation history
+            response: The AI response
+            
+        Returns:
+            The final response after handling tool calls
+        """
+        return self._tool_manager.handle_tool_calls(messages, response, self.ai)
+
+    def _update_conversation_history(self, user_prompt: str, response: Any, thoughts: str) -> None:
+        """
+        Update the conversation history with the latest interaction.
+        
+        Args:
+            user_prompt: The user's original prompt
+            response: The AI response
+            thoughts: The extracted thoughts
+        """
+        self.thoughts.append(thoughts)
+        self.questions.append(user_prompt)  # Store original prompt
+        self.responses.append(response.content if hasattr(response, 'content') else response)
+    
     def request(self, user_prompt: str) -> str:
         """
         Request the AI response with optional tool finding.
@@ -151,61 +152,25 @@ class AI(AIBase):
         """
         self._logger.debug(f"Enhanced AI requesting response for: {user_prompt}")
         
-        # Check if tool finding is enabled
-        relevant_tools = []
-        if self._auto_find_tools and self._tool_finder:
-            relevant_tools = self._tool_finder.find_tools(user_prompt, self.questions[-3:])
+        # Prepare the request
+        messages, enhanced_prompt = self._prepare_request(user_prompt)
         
-        # Build conversation history
-        messages = []
-        messages.extend(self._build_conversation_history())
-        
-        # Enhance the prompt with tool information if tools were found
-        enhanced_prompt = user_prompt
-        if relevant_tools:
-            enhanced_prompt = ToolPromptBuilder.build_enhanced_prompt(user_prompt, relevant_tools)
-            self._logger.debug(f"Enhanced prompt with tools: {enhanced_prompt}")
-        
-        # Continue with the standard request flow but use enhanced prompt
-        messages.append(self._build_messages(enhanced_prompt, Role.USER))
+        # Get response from AI
         response = self.ai.request(messages)
         
-        # Handle tool calls if present
-        if response.tool_calls:
-            for tool_call in response.tool_calls:
-                tool_result = self._tool_executor.execute(tool_call.name, tool_call.arguments)
-                # Let the AI module handle the tool message formatting
-                messages = self.ai.add_tool_message(messages, tool_call.name, tool_result)
-                # Get AI's response to the tool result
-                follow_up_response = self.ai.request(messages)
-                response = follow_up_response
-        else:
-            # Check if there's a tool call in the response text
-            tool_call_data = self._tool_call_parser.parse_tool_call(response.content)
-            if tool_call_data:
-                tool_result = self._tool_executor.execute(
-                    tool_call_data["name"],
-                    json.dumps(tool_call_data["arguments"])
-                )
-                # Let the AI module handle the tool message formatting
-                messages = self.ai.add_tool_message(messages, tool_call_data["name"], tool_result)
-                # Get AI's response to the tool result
-                follow_up_response = self.ai.request(messages)
-                response = follow_up_response
+        # Handle any tool calls
+        response = self._handle_tool_calls(messages, response)
         
         # Extract and process the response content
         thoughts = Parser.extract_text(response.content, "<think>", "</think>")
-        self.thoughts.append(thoughts)
-        self.questions.append(user_prompt)  # Store original prompt
-        self.responses.append(response.content)
+        self._update_conversation_history(user_prompt, response, thoughts)
         
         # If this is a tool response, return it directly
         if hasattr(response, 'tool_calls') and response.tool_calls:
             return response.content
-        elif tool_call_data:
-            return tool_result
-        
-        return response.content
+        elif hasattr(response, 'content'):
+            return response.content
+        return response
     
     def stream(self, user_prompt: str) -> str:
         """
@@ -220,31 +185,30 @@ class AI(AIBase):
         """
         self._logger.debug(f"Enhanced AI streaming response for: {user_prompt}")
         
-        # Check if tool finding is enabled
-        relevant_tools = []
-        if self._auto_find_tools and self._tool_finder:
-            relevant_tools = self._tool_finder.find_tools(user_prompt, self.questions[-3:])
+        # Prepare the request
+        messages, enhanced_prompt = self._prepare_request(user_prompt)
         
-        # Build conversation history
-        messages = []
-        messages.extend(self._build_conversation_history())
-        
-        # Enhance the prompt with tool information if tools were found
-        enhanced_prompt = user_prompt
-        if relevant_tools:
-            enhanced_prompt = ToolPromptBuilder.build_enhanced_prompt(user_prompt, relevant_tools)
-            self._logger.debug(f"Enhanced prompt with tools: {enhanced_prompt}")
-        
-        # Continue with the standard stream flow but use enhanced prompt
-        messages.append(self._build_messages(enhanced_prompt, Role.USER))
+        # Get streamed response from AI
         response = self.ai.stream(messages)
         
         if not response:
             raise AI_Processing_Error("No response from AI")
-            
+        
+        # Check for tool calls in the response (this is tricky with streaming)
+        # Consider implementing a post-stream tool execution step
+        tool_result = self._tool_manager._tool_executor.execute_from_response(response)
+        if tool_result.success:
+            # Follow up with a non-streaming request to handle the tool
+            messages = self.ai.add_tool_message(
+                messages, 
+                tool_result.tool_name, 
+                tool_result.result
+            )
+            follow_up_response = self.ai.request(messages)
+            response += f"\n\n[Tool executed: {tool_result.tool_name}]\n{follow_up_response.content}"
+        
+        # Extract and process the response content
         thoughts = Parser.extract_text(response, "<think>", "</think>")
-        self.thoughts.append(thoughts)
-        self.questions.append(user_prompt)  # Store original prompt
-        self.responses.append(response)
+        self._update_conversation_history(user_prompt, response, thoughts)
         
         return response

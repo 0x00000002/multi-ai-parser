@@ -1,9 +1,8 @@
 from typing import List, Optional
 from src.ai.tools.tools_list import Tool
 from src.ai.tools.tools_registry import ToolsRegistry
-from src.Prompter import Prompter
 import src.ai.ai_config as config
-from src.Logger import Logger, NullLogger
+from src.logger import Logger, NullLogger
 import json
 
 # Import from existing AI modules
@@ -91,7 +90,7 @@ class ToolFinder:
         
         and identify the most appropriate tools from the list of tools:
 
-        LIST OF TOOLS: {Tool.get_tools_descriptions()}
+        LIST OF TOOLS: {Tool.list_tools()}
 
         Return a JSON array with the list of tool names in this format:
         {{

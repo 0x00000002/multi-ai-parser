@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Dict, List
+from typing import Dict, List, Any
 from src.ai.tools.models import Function, Parameters
 from src.ai.tools.tools_list import Tool
 
@@ -81,3 +81,39 @@ class Google_Function(Formatable):
         # Return as a single item in the list
         return [{"function_declarations": all_declarations}]
 
+class ToolResult:
+    """Structured result from a tool execution."""
+    
+    def __init__(self, 
+                 success: bool, 
+                 result: Any = None, 
+                 message: str = "", 
+                 tool_name: str = None):
+        """
+        Initialize a tool result.
+        
+        Args:
+            success: Whether the tool execution was successful
+            result: The result data from the tool (if successful)
+            message: An explanatory message, especially for errors
+            tool_name: The name of the tool that was executed
+        """
+        self.success = success
+        self.result = result
+        self.message = message
+        self.tool_name = tool_name
+    
+    def __str__(self) -> str:
+        """String representation of the result."""
+        if self.success:
+            return f"Success ({self.tool_name}): {self.result}"
+        return f"Failed: {self.message}"
+    
+    def as_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "success": self.success,
+            "result": self.result,
+            "message": self.message,
+            "tool_name": self.tool_name
+        }

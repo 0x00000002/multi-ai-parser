@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 
 import src.ai.ai_config as config
 from openai import OpenAI
-from src.Logger import Logger
+from src.logger import Logger
 from src.ai.tools.models import ToolCallRequest, ToolCall
 
 

@@ -1,8 +1,8 @@
 import pytest
 from src.ai.enhanced_ai import AI, Role
 from src.ai.model_selector import UseCase
-import src.ai.ai_config as config
-from src.Logger import Logger, NullLogger
+from src.ai.ai_config import Model, Quality, Speed, Privacy, DEFAULT_TOOL_FINDER_MODEL
+from src.logger import Logger, NullLogger
 from unittest.mock import Mock, patch
 import os
 from dotenv import load_dotenv
@@ -10,6 +10,9 @@ from src.ai.modules.Anthropic import ClaudeAI
 from src.ai.modules.Google import Gemini
 from src.ai.modules.OpenAI import ChatGPT
 from src.ai.tools.models import ToolCallRequest
+from src.ai.tools.tools_manager import ToolManager
+from src.ai.tools.tool_finder import ToolFinder
+from src.ai.tools.tools_list import Tool
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,45 +23,60 @@ def mock_logger():
     return Mock(spec=Logger)
 
 @pytest.fixture
-def mock_api_keys(monkeypatch):
-    # Get API keys from environment variables
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    openai_key = os.getenv("OPENAI_API_KEY")
-    google_key = os.getenv("GOOGLE_API_KEY")
-    
-    # Set up API keys in test environment
-    monkeypatch.setenv("ANTHROPIC_API_KEY", anthropic_key)
-    monkeypatch.setenv("OPENAI_API_KEY", openai_key)
-    monkeypatch.setenv("GOOGLE_API_KEY", google_key)
-    
-    yield
-    
-    # Clean up
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+def mock_tool_manager():
+    return Mock(spec=ToolManager)
+
+@pytest.fixture
+def mock_tool_finder():
+    return Mock(spec=ToolFinder)
 
 # AI Core Tests
 class TestAI:
     @patch('src.ai.modules.Anthropic.ClaudeAI')
     def test_ai_initialization_with_model(self, mock_claude, mock_logger):
         mock_claude.return_value = Mock()
-        ai = AI(config.Model.CLAUDE_SONNET_3_5, logger=mock_logger)
-        assert ai.model == config.Model.CLAUDE_SONNET_3_5
+        ai = AI(Model.CLAUDE_SONNET_3_5, logger=mock_logger)
+        assert ai.model == Model.CLAUDE_SONNET_3_5
         assert ai.system_prompt == ""
+        assert isinstance(ai._tool_manager, ToolManager)
 
     @patch('src.ai.modules.OpenAI.ChatGPT')
     def test_ai_initialization_with_use_case(self, mock_chatgpt, mock_logger):
         mock_chatgpt.return_value = Mock()
         ai = AI(UseCase.CODING, logger=mock_logger)
-        assert isinstance(ai.model, config.Model)
+        assert isinstance(ai.model, Model)
         assert len(ai.system_prompt) > 0
+        assert isinstance(ai._tool_manager, ToolManager)
 
     @patch('src.ai.modules.OpenAI.ChatGPT')
     def test_ai_initialization_with_dict(self, mock_chatgpt, mock_logger):
         mock_chatgpt.return_value = Mock()
-        ai = AI({"privacy": config.Privacy.EXTERNAL, "quality": config.Quality.HIGH, "speed": config.Speed.FAST}, logger=mock_logger)
-        assert isinstance(ai.model, config.Model)
+        ai = AI({"privacy": Privacy.EXTERNAL, "quality": Quality.HIGH, "speed": Speed.FAST}, logger=mock_logger)
+        assert isinstance(ai.model, Model)
+        assert isinstance(ai._tool_manager, ToolManager)
+
+    def test_tool_manager_methods(self, mock_logger, mock_tool_manager):
+        with patch('src.ai.enhanced_ai.ToolManager', return_value=mock_tool_manager):
+            ai = AI(Model.CLAUDE_SONNET_3_5, logger=mock_logger)
+            
+            # Test set_tool_finder
+            mock_tool_finder = Mock(spec=ToolFinder)
+            ai.set_tool_finder(mock_tool_finder)
+            mock_tool_manager.set_tool_finder.assert_called_once_with(mock_tool_finder)
+            
+            # Test create_tool_finder
+            ai.create_tool_finder(Model.CLAUDE_SONNET_3_5)
+            mock_tool_manager.create_tool_finder.assert_called_once_with(Model.CLAUDE_SONNET_3_5)
+            
+            # Test enable_auto_tool_finding
+            ai.enable_auto_tool_finding(True)
+            mock_tool_manager.enable_auto_tool_finding.assert_called_once_with(True)
+            
+            # Test find_tools
+            mock_tool_manager.find_tools.return_value = [Tool.TICKET_ORACLE]
+            result = ai.find_tools("test prompt")
+            assert result == [Tool.TICKET_ORACLE]
+            mock_tool_manager.find_tools.assert_called_once_with("test prompt", [])
 
     @patch('src.ai.base_ai.ClaudeAI')
     def test_conversation_management(self, mock_claude, mock_logger):
@@ -73,10 +91,10 @@ class TestAI:
         mock_claude.return_value = mock_claude_instance
 
         # Create AI instance with mocked ClaudeAI
-        ai = AI(config.Model.CLAUDE_SONNET_3_5, logger=mock_logger)
+        ai = AI(Model.CLAUDE_SONNET_3_5, logger=mock_logger)
         
         # Verify mock was used
-        mock_claude.assert_called_once_with(config.Model.CLAUDE_SONNET_3_5, "", mock_logger)
+        mock_claude.assert_called_once_with(Model.CLAUDE_SONNET_3_5, "", mock_logger)
         assert ai.ai == mock_claude_instance
         
         # Make request and verify response
@@ -122,7 +140,7 @@ class TestAI:
     @patch('src.ai.modules.Anthropic.ClaudeAI')
     def test_system_prompt_management(self, mock_claude, mock_logger):
         mock_claude.return_value = Mock()
-        ai = AI(config.Model.CLAUDE_SONNET_3_5, system_prompt="Test prompt", logger=mock_logger)
+        ai = AI(Model.CLAUDE_SONNET_3_5, system_prompt="Test prompt", logger=mock_logger)
         assert ai.system_prompt == "Test prompt"
         
         ai.system_prompt = "New prompt"
@@ -131,11 +149,11 @@ class TestAI:
     @patch('src.ai.modules.Google.Gemini')
     def test_model_switching(self, mock_gemini, mock_logger):
         mock_gemini.return_value = Mock()
-        ai = AI(config.Model.GEMINI_1_5_PRO, logger=mock_logger)
-        assert ai.model == config.Model.GEMINI_1_5_PRO
+        ai = AI(Model.GEMINI_1_5_PRO, logger=mock_logger)
+        assert ai.model == Model.GEMINI_1_5_PRO
         
-        ai.model = config.Model.CLAUDE_SONNET_3_5
-        assert ai.model == config.Model.CLAUDE_SONNET_3_5
+        ai.model = Model.CLAUDE_SONNET_3_5
+        assert ai.model == Model.CLAUDE_SONNET_3_5
 
     @patch('src.ai.base_ai.ClaudeAI')
     def test_streaming_response(self, mock_claude, mock_logger):
@@ -145,10 +163,10 @@ class TestAI:
         mock_claude.return_value = mock_claude_instance
 
         # Create AI instance with mocked ClaudeAI
-        ai = AI(config.Model.CLAUDE_SONNET_3_5, logger=mock_logger)
+        ai = AI(Model.CLAUDE_SONNET_3_5, logger=mock_logger)
         
         # Verify mock was used
-        mock_claude.assert_called_once_with(config.Model.CLAUDE_SONNET_3_5, "", mock_logger)
+        mock_claude.assert_called_once_with(Model.CLAUDE_SONNET_3_5, "", mock_logger)
         assert ai.ai == mock_claude_instance
         
         # Make request and verify response
@@ -169,4 +187,5 @@ class TestAI:
         mock_chatgpt.return_value = Mock()
         ai = AI.for_use_case(UseCase.CODING, logger=mock_logger)
         assert isinstance(ai, AI)
-        assert len(ai.system_prompt) > 0 
+        assert len(ai.system_prompt) > 0
+        assert isinstance(ai._tool_manager, ToolManager) 

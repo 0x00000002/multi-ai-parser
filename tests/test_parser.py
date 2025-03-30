@@ -1,5 +1,5 @@
 import pytest
-from src.Parser import Parser
+from src.parser import Parser
 
 class TestParser:
     def test_extract_text(self):

@@ -6,13 +6,13 @@ from IPython.display import Markdown, display
 import logging
 from bs4 import BeautifulSoup
 from src.ai import AI
-from src.ai.AIConfig import Quality, Speed
-from src.Prompter import Prompter
-from src.ai.ModelSelector import ModelSelector, UseCase
+from src.ai.ai_config import Quality, Speed
+from src.prompter import Prompter
+from src.ai.model_selector import ModelSelector, UseCase
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Union, Callable
 import json
-from src.Logger import Logger, NullLogger
+from src.logger import Logger, NullLogger
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

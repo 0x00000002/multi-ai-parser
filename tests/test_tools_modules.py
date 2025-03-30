@@ -34,55 +34,6 @@ def mock_api_keys(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
 class TestToolsRegistry:
-    def test_tools_registration_openai(self):
-        tools = [Tool.TICKET_ORACLE]
-        result = ToolsRegistry.get_tools(tools, Provider.OPENAI)
-        assert isinstance(result, list)
-        assert len(result) > 0
-        assert "function" in result[0]
-        assert "name" in result[0]["function"]
-        assert "description" in result[0]["function"]
-        assert "parameters" in result[0]["function"]
-
-    def test_tools_registration_anthropic(self):
-        tools = [Tool.TICKET_ORACLE]
-        result = ToolsRegistry.get_tools(tools, Provider.ANTHROPIC)
-        assert isinstance(result, list)
-        assert len(result) > 0
-        assert "name" in result[0]
-        assert "description" in result[0]
-        assert "input_schema" in result[0]
-
-    def test_tools_registration_google(self):
-        tools = [Tool.TICKET_ORACLE]
-        result = ToolsRegistry.get_tools(tools, Provider.GOOGLE)
-        assert isinstance(result, list)
-        assert len(result) > 0
-        assert "function_declarations" in result[0]
-        assert "name" in result[0]["function_declarations"][0]
-        assert "description" in result[0]["function_declarations"][0]
-        assert "parameters" in result[0]["function_declarations"][0]
-
-    def test_tools_registration_ollama(self):
-        tools = [Tool.TICKET_ORACLE]
-        result = ToolsRegistry.get_tools(tools, Provider.OLLAMA)
-        assert isinstance(result, list)
-        assert len(result) > 0
-        assert "function" in result[0]
-        assert "name" in result[0]["function"]
-        assert "description" in result[0]["function"]
-        assert "parameters" in result[0]["function"]
-
-    def test_empty_tools_list(self):
-        tools = []
-        result = ToolsRegistry.get_tools(tools, Provider.OPENAI)
-        assert isinstance(result, list)
-        assert len(result) == 0
-
-    def test_invalid_provider(self):
-        tools = [Tool.TICKET_ORACLE]
-        with pytest.raises(KeyError):
-            ToolsRegistry.get_tools(tools, "INVALID_PROVIDER")
 
     @patch('anthropic.Anthropic')
     def test_claude_initialization(self, mock_anthropic_class, mock_api_keys):

@@ -1,5 +1,5 @@
 import pytest
-from src.Logger import Logger, LoggingLevel, LogFormat, NullLogger
+from src.logger import Logger, LoggingLevel, LogFormat, NullLogger
 import logging
 from unittest.mock import patch, Mock
 

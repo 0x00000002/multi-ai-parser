@@ -1,9 +1,9 @@
 from typing import List, Dict, Any, Optional, Union
 import src.ai.ai_config as config
 from src.ai.model_selector import ModelSelector, UseCase
-from src.Parser import Parser
+from src.parser import Parser
 from src.ai.errors import AI_Processing_Error, AI_Setup_Error
-from src.Logger import Logger, NullLogger
+from src.logger import Logger, NullLogger
 from enum import Enum
 
 # Import all provider classes to make them available in globals()
@@ -133,6 +133,14 @@ class AIBase:
         self._logger.debug(f"System prompt set to: {value}")
 
     @property
+    def conversation_length(self) -> int:
+        return self._conversation_length
+    
+    @conversation_length.setter
+    def conversation_length(self, value: int): 
+        self._conversation_length = value
+
+    @property
     def model(self) -> config.Model:
         return self._model
     
@@ -150,7 +158,7 @@ class AIBase:
         
         # Initialize provider
         self.ai = provider_class(self._model, self._system_prompt, self._logger)        
-        self._logger.info(f"Model changed to {self._model.name} ({self._model.model_id})")
+        self._logger.info(f"Model set to {self._model.name} ({self._model.model_id})")
 
     @property
     def results(self) -> str:
@@ -169,16 +177,21 @@ class AIBase:
         if hasattr(self, 'ai'):
             self.ai.logger = value
             
-    def _build_conversation_history(self) -> List[Dict[str, Any]]:
-        """Build conversation history with context if available."""
-        messages = []
+def _build_conversation_history(self) -> List[Dict[str, Any]]:
+    """Build conversation history with context if available."""
+    messages = []
+    
+    if self.questions:
+        # If max_conversation_length is not set, use the full length
+        max_length = self._conversation_length if hasattr(self, '_conversation_length') and self._conversation_length is not None else len(self.questions)
         
-        # Add previous conversation as context if available
-        if self.questions:
-            # Split context into past interactions
-            for i in range(len(self.questions)):
-                messages.append(self._build_messages(self.questions[i], Role.USER))
-                messages.append(self._build_messages(self.responses[i], Role.AI))
+        for question, response in zip(
+            self.questions[-max_length:],
+            self.responses[-max_length:]
+        ):
+            messages.append(self._build_messages(question, Role.USER))
+            messages.append(self._build_messages(response, Role.AI))
+    
         self._logger.debug(f"Conversation history: {messages}")
         return messages
 

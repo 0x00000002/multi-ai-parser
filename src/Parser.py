@@ -1,6 +1,6 @@
 import re
 from typing import Optional
-from src.Logger import Logger
+from src.logger import Logger
 
 class Parser:
     class Parsing_Error(Exception):
