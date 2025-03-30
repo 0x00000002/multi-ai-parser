@@ -1,6 +1,35 @@
+"""
+Logger implementation for the AI framework.
+"""
 import logging
-from typing import Optional, Dict, List, Union
+from typing import Protocol, Optional, Dict, List, Union
+from typing_extensions import runtime_checkable
 from enum import Enum
+
+
+@runtime_checkable
+class LoggerInterface(Protocol):
+    """Interface for logging implementations."""
+    
+    def debug(self, message: str) -> None:
+        """Log a debug message."""
+        ...
+    
+    def info(self, message: str) -> None:
+        """Log an info message."""
+        ...
+    
+    def warning(self, message: str) -> None:
+        """Log a warning message."""
+        ...
+    
+    def error(self, message: str) -> None:
+        """Log an error message."""
+        ...
+    
+    def critical(self, message: str) -> None:
+        """Log a critical message."""
+        ...
 
 
 class LoggingLevel(Enum):
@@ -24,41 +53,50 @@ class LoggerFactory:
     _instances: Dict[str, 'Logger'] = {}
 
     @classmethod
-    def get_logger(cls, name: str, level: LoggingLevel = LoggingLevel.INFO, 
-                 format: LogFormat = LogFormat.SIMPLE) -> 'Logger':
+    def create(cls, name: str = None, level: LoggingLevel = LoggingLevel.INFO, 
+              format: LogFormat = LogFormat.SIMPLE) -> LoggerInterface:
         """
-        Get or create a logger instance with the given name.
+        Create a new logger instance.
+        
+        Args:
+            name: Logger name (optional)
+            level: Logging level
+            format: Log format
+            
+        Returns:
+            Logger instance
         """
+        name = name or "ai_framework"
         if name not in cls._instances:
             cls._instances[name] = Logger(name, level, format)
         return cls._instances[name]
     
     @classmethod
-    def reset_loggers(cls) -> None:
-        """
-        Reset all loggers (useful for testing).
-        """
+    def reset(cls) -> None:
+        """Reset all loggers (useful for testing)."""
         cls._instances.clear()
         
 
-class NullLogger:
+class NullLogger(LoggerInterface):
     """Logger that silently discards all messages."""
-    def info(self, message: str, *args, **kwargs) -> None:
+    
+    def info(self, message: str) -> None:
         pass
         
-    def debug(self, message: str, *args, **kwargs) -> None:
+    def debug(self, message: str) -> None:
         pass
         
-    def warning(self, message: str, *args, **kwargs) -> None:
+    def warning(self, message: str) -> None:
         pass
         
-    def error(self, message: str, *args, **kwargs) -> None:
+    def error(self, message: str) -> None:
         pass
         
-    def critical(self, message: str, *args, **kwargs) -> None:
+    def critical(self, message: str) -> None:
         pass
 
-class Logger:
+
+class Logger(LoggerInterface):
     """
     Custom logger class that wraps the standard logging module.
     """
@@ -69,6 +107,15 @@ class Logger:
         format: LogFormat = LogFormat.SIMPLE,
         handlers: List[logging.Handler] = None
     ):
+        """
+        Initialize the logger.
+        
+        Args:
+            name: Logger name
+            level: Logging level
+            format: Log format
+            handlers: Optional list of handlers
+        """
         self.name = name
         self.level = level
         self.format = format
@@ -108,17 +155,17 @@ class Logger:
         handler = logging.FileHandler(filename)
         self._configure_handler(handler)
     
-    def info(self, message: str, *args, **kwargs) -> None:
-        self._logger.info(message, *args, **kwargs)
+    def info(self, message: str) -> None:
+        self._logger.info(message)
         
-    def debug(self, message: str, *args, **kwargs) -> None:
-        self._logger.debug(message, *args, **kwargs)
+    def debug(self, message: str) -> None:
+        self._logger.debug(message)
         
-    def warning(self, message: str, *args, **kwargs) -> None:
-        self._logger.warning(message, *args, **kwargs)
+    def warning(self, message: str) -> None:
+        self._logger.warning(message)
         
-    def error(self, message: str, *args, **kwargs) -> None:
-        self._logger.error(message, *args, **kwargs)
+    def error(self, message: str) -> None:
+        self._logger.error(message)
         
-    def critical(self, message: str, *args, **kwargs) -> None:
-        self._logger.critical(message, *args, **kwargs)
+    def critical(self, message: str) -> None:
+        self._logger.critical(message) 

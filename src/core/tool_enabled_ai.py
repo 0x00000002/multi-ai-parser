@@ -1,188 +1,270 @@
 """
-Tool-enabled AI implementation.
-Extends the base AI with tool execution capabilities.
+AI implementation with tool-calling capabilities.
+Extends the base AI with the ability to call tools to handle complex tasks.
 """
-from typing import Dict, List, Any, Optional, Union, Set
-from .interfaces import ToolCapableProviderInterface, LoggerInterface
+from typing import Dict, List, Any, Optional, Union, Callable
+import json
+import inspect
 from .base_ai import AIBase
-from ..config.config_manager import ConfigManager
-from ..exceptions import AISetupError, AIProcessingError, AIToolError
-from ..tools.tool_manager import ToolManager
-from ..tools.tool_registry import ToolRegistry
-from ..tools.tool_finder import ToolFinder
-from ..tools.models import ToolResult
-from ..utils.logger import LoggerFactory
-from typing import Dict, List, Any, Optional, Union
-from .interfaces import ToolCapableProviderInterface, LoggerInterface
-from .base_ai import AIBase
-from ..config.config_manager import ConfigManager
-from ..exceptions import AISetupError, AIProcessingError, AIToolError
-from ..tools.tool_manager import ToolManager
-from ..tools.tool_registry import ToolRegistry
-from ..tools.tool_finder import ToolFinder
-from ..utils.logger import LoggerFactory
+from ..exceptions import AIProcessingError, AIToolError
+from ..tools.models import ToolCall
 
 
 class ToolEnabledAI(AIBase):
     """
-    Tool-enabled AI that can use tools to enhance responses.
+    AI implementation with tool-calling capabilities.
+    Can register and call tools based on the model's output.
     """
     
     def __init__(self, 
-                 model_id: Optional[str] = None, 
-                 system_prompt: Optional[str] = None,
-                 config_manager: Optional[ConfigManager] = None,
-                 logger: Optional[LoggerInterface] = None,
-                 tool_manager: Optional[ToolManager] = None,
-                 auto_find_tools: bool = False,
-                 tool_finder_model_id: Optional[str] = None,
-                 request_id: Optional[str] = None):
+                 model=None, 
+                 system_prompt=None, 
+                 config_manager=None,
+                 logger=None,
+                 request_id=None,
+                 auto_find_tools=False):
         """
         Initialize the tool-enabled AI.
         
         Args:
-            model_id: The model to use (or None for default)
+            model: The model to use (Model enum or string ID)
             system_prompt: Custom system prompt (or None for default)
             config_manager: Configuration manager instance
             logger: Logger instance
-            tool_manager: Tool manager instance
-            auto_find_tools: Whether to automatically find relevant tools
-            tool_finder_model_id: Model ID to use for tool finding
             request_id: Unique identifier for tracking this session
-            
-        Raises:
-            AISetupError: If initialization fails
+            auto_find_tools: Whether to automatically find tools in the current scope
         """
-        # Initialize base AI
         super().__init__(
-            model_id=model_id,
+            model=model,
             system_prompt=system_prompt,
             config_manager=config_manager,
             logger=logger,
             request_id=request_id
         )
         
-        # Check if the provider supports tools
-        if not isinstance(self._provider, ToolCapableProviderInterface):
+        self._tools = {}
+        self._tool_schemas = {}
+        
+        # Check if the provider supports tool calling
+        self._supports_tools = hasattr(self._provider, "supports_tools") and self._provider.supports_tools
+        if not self._supports_tools:
             self._logger.warning(f"Provider {self._model_config.provider} does not fully support tools")
         
-        # Set up tool manager
-        self._tool_manager = tool_manager or ToolManager(
-            logger=self._logger,
-            config_manager=self._config_manager
-        )
-        
-        # Configure tool finder if auto-finding is enabled
+        # Automatically find tools if requested
         if auto_find_tools:
-            self.enable_auto_tool_finding(
-                enabled=True,
-                tool_finder_model_id=tool_finder_model_id
-            )
+            self._find_tools()
     
-    def enable_auto_tool_finding(self, enabled: bool = True, 
-                                tool_finder_model_id: Optional[str] = None) -> None:
+    def register_tool(self, 
+                     tool_name: str, 
+                     tool_function: Callable, 
+                     description: str = None, 
+                     parameters_schema: Dict = None) -> None:
         """
-        Enable or disable automatic tool finding.
+        Register a tool that can be called by the AI.
         
         Args:
-            enabled: Whether to enable automatic tool finding
-            tool_finder_model_id: Model ID to use for tool finding
+            tool_name: Name of the tool
+            tool_function: Function to call
+            description: Tool description
+            parameters_schema: JSON schema for parameters (or None to infer)
         """
-        self._tool_manager.enable_auto_tool_finding(
-            enabled=enabled,
-            tool_finder_model_id=tool_finder_model_id
-        )
-        self._logger.info(f"Auto tool finding {'enabled' if enabled else 'disabled'}")
+        self._tools[tool_name] = tool_function
+        
+        # If no parameters schema provided, try to infer from function signature
+        if parameters_schema is None:
+            parameters_schema = self._infer_schema(tool_function)
+        
+        # Use function docstring as description if not provided
+        if description is None and tool_function.__doc__:
+            description = tool_function.__doc__.strip()
+        
+        self._tool_schemas[tool_name] = {
+            "name": tool_name,
+            "description": description or f"Call {tool_name} function",
+            "parameters": parameters_schema
+        }
+        
+        self._logger.info(f"Registered tool: {tool_name}")
     
-    def register_tool(self, tool_name: str, tool_function: callable, 
-                     description: str, parameters_schema: Dict[str, Any]) -> None:
+    def _infer_schema(self, func: Callable) -> Dict[str, Any]:
         """
-        Register a custom tool.
+        Infer JSON schema from function signature.
         
         Args:
-            tool_name: Unique name for the tool
-            tool_function: The function implementing the tool
-            description: Description of what the tool does
-            parameters_schema: JSON schema for the tool parameters
-        """
-        self._tool_manager.register_tool(
-            tool_name=tool_name,
-            tool_function=tool_function,
-            description=description,
-            parameters_schema=parameters_schema
-        )
-        self._logger.info(f"Tool registered: {tool_name}")
-    
-    def find_tools(self, prompt: str) -> Set[str]:
-        """
-        Find relevant tools for a given prompt.
-        
-        Args:
-            prompt: The user prompt
+            func: Function to inspect
             
         Returns:
-            Set of tool names that are relevant to the prompt
+            JSON schema for function parameters
         """
-        return self._tool_manager.find_tools(prompt)
+        sig = inspect.signature(func)
+        properties = {}
+        required = []
+        
+        for name, param in sig.parameters.items():
+            # Skip self for methods
+            if name == "self":
+                continue
+                
+            properties[name] = {"type": "string"}
+            
+            # Handle type annotations
+            if param.annotation != inspect.Parameter.empty:
+                if param.annotation == int:
+                    properties[name]["type"] = "integer"
+                elif param.annotation == float:
+                    properties[name]["type"] = "number"
+                elif param.annotation == bool:
+                    properties[name]["type"] = "boolean"
+                elif param.annotation == list:
+                    properties[name]["type"] = "array"
+                elif param.annotation == dict:
+                    properties[name]["type"] = "object"
+            
+            # Add to required list if no default value
+            if param.default == inspect.Parameter.empty:
+                required.append(name)
+        
+        return {
+            "type": "object",
+            "properties": properties,
+            "required": required
+        }
     
-    def execute_tool(self, tool_name: str, **args) -> ToolResult:
+    def _find_tools(self) -> None:
+        """Find tools in the current scope."""
+        # This is a placeholder - would need to implement tool discovery
+        self._logger.info("Tool discovery not yet implemented")
+    
+    def _call_tool(self, tool_call: ToolCall) -> str:
         """
-        Execute a specific tool directly.
+        Call a registered tool.
         
         Args:
-            tool_name: Name of the tool to execute
-            args: Arguments to pass to the tool
+            tool_call: Tool call object
             
         Returns:
-            Tool execution result
+            Tool response as string
             
         Raises:
             AIToolError: If tool execution fails
         """
+        tool_name = tool_call.name
+        
+        if tool_name not in self._tools:
+            raise AIToolError(f"Tool not found: {tool_name}")
+        
         try:
-            return self._tool_manager.execute_tool(tool_name, **args)
+            # Parse arguments
+            args = json.loads(tool_call.arguments)
+            
+            # Call the tool function
+            self._logger.info(f"Calling tool: {tool_name} with args: {args}")
+            result = self._tools[tool_name](**args)
+            
+            # Convert result to string if needed
+            if not isinstance(result, str):
+                result = json.dumps(result)
+                
+            return result
+            
         except Exception as e:
             self._logger.error(f"Tool execution failed: {str(e)}")
             raise AIToolError(f"Failed to execute tool {tool_name}: {str(e)}")
     
     def request(self, prompt: str, **options) -> str:
         """
-        Make a request with tool capabilities.
-        Overrides the base implementation to add tool handling.
+        Make a tool-enabled request to the AI model.
+        Handles tool calling and follow-up requests automatically.
         
         Args:
             prompt: The user prompt
             options: Additional options for the request
             
         Returns:
-            The model's response as a string
+            The model's final response, after any tool calls are processed
+            
+        Raises:
+            AIProcessingError: If the request fails
         """
         self._logger.info(f"Processing tool-enabled request: {prompt[:50]}...")
         
         try:
-            # Find relevant tools if auto-finding is enabled
-            enhanced_prompt = prompt
-            if self._tool_manager.auto_find_tools:
-                tool_names = self._tool_manager.find_tools(prompt)
-                if tool_names:
-                    self._logger.info(f"Found relevant tools: {', '.join(tool_names)}")
-                    enhanced_prompt = self._tool_manager.enhance_prompt(prompt, tool_names)
+            # Add user message
+            self._conversation_manager.add_message(role="user", content=prompt)
             
-            # Build messages with conversation history
-            messages = self._build_messages(enhanced_prompt)
+            # Make initial request
+            response = self._provider.request(self._conversation_manager.get_messages(), **options)
             
-            # Make the request to the provider
-            response = self._provider.request(messages, **options)
+            # If the response is a string, it means no tools were needed
+            if isinstance(response, str):
+                # Add assistant message directly
+                self._conversation_manager.add_message(role="assistant", content=response)
+                
+                # Update conversation history
+                self._conversation_manager.add_interaction(prompt, response)
+                
+                return response
             
             # Handle tool calls if present
-            if self._has_tool_calls(response):
-                self._logger.info("Processing tool calls in response")
-                response = self._process_tool_calls(messages, response)
+            if response.get('tool_calls'):
+                # Add assistant message with tool calls
+                self._conversation_manager.add_message(
+                    role="assistant",
+                    content=response.get('content', ''),
+                    tool_calls=response.get('tool_calls', [])
+                )
+                
+                # Process each tool call
+                for tool_call in response.get('tool_calls', []):
+                    try:
+                        # Call the tool
+                        tool_result = self._call_tool(tool_call)
+                        
+                        # Add tool result to conversation
+                        self._conversation_manager.add_message(
+                            role="tool",
+                            name=tool_call.name,
+                            content=tool_result
+                        )
+                    except AIToolError as e:
+                        # Add error message as tool result
+                        self._conversation_manager.add_message(
+                            role="tool",
+                            name=tool_call.name,
+                            content=f"Error: {str(e)}"
+                        )
+                
+                # Make follow-up request with tool results
+                follow_up = self._provider.request(self._conversation_manager.get_messages(), **options)
+                
+                # If the follow-up is a string (no more tools)
+                if isinstance(follow_up, str):
+                    final_content = follow_up
+                else:
+                    # Get content from follow-up response
+                    final_content = follow_up.get('content', '')
+                
+                # Add final assistant message
+                self._conversation_manager.add_message(
+                    role="assistant",
+                    content=final_content
+                )
+                
+                # Update conversation history
+                self._conversation_manager.add_interaction(prompt, final_content)
+                
+                return final_content
             
-            # Extract content from response
-            content = self._extract_content(response)
+            # If no tool calls but response is a dict, extract content
+            content = response.get('content', '')
             
-            # Update conversation history with original prompt and final response
+            # Add assistant message
+            self._conversation_manager.add_message(
+                role="assistant",
+                content=content
+            )
+            
+            # Update conversation history
             self._conversation_manager.add_interaction(prompt, content)
             
             return content
@@ -191,48 +273,11 @@ class ToolEnabledAI(AIBase):
             self._logger.error(f"Tool-enabled request failed: {str(e)}")
             raise AIProcessingError(f"Request failed: {str(e)}")
     
-    def _has_tool_calls(self, response: Dict[str, Any]) -> bool:
-        """Check if the response contains tool calls."""
-        # This implementation depends on the specific response format
-        # A more robust implementation would handle different formats
-        return 'tool_calls' in response and response['tool_calls']
-    
-    def _process_tool_calls(self, messages: List[Dict[str, Any]], 
-                           response: Dict[str, Any]) -> Dict[str, Any]:
+    def get_tools(self) -> Dict[str, Dict[str, Any]]:
         """
-        Process tool calls in the response.
+        Get registered tool schemas.
         
-        Args:
-            messages: The current messages list
-            response: The response containing tool calls
-            
         Returns:
-            Updated response after tool execution
+            Dictionary of tool schemas
         """
-        for tool_call in response.get('tool_calls', []):
-            tool_name = tool_call.get('name', '')
-            tool_args = tool_call.get('arguments', {})
-            
-            try:
-                # Execute the tool
-                tool_result = self._tool_manager.execute_tool(tool_name, **tool_args)
-                
-                # Add tool result to messages
-                messages = self._provider.add_tool_message(
-                    messages=messages,
-                    name=tool_name,
-                    content=str(tool_result.result)
-                )
-                
-                # Get follow-up response
-                response = self._provider.request(messages)
-                
-                # Check for additional tool calls recursively
-                if self._has_tool_calls(response):
-                    return self._process_tool_calls(messages, response)
-                
-            except Exception as e:
-                self._logger.error(f"Tool execution failed: {str(e)}")
-                # Continue with next tool call or return current response
-        
-        return response
+        return self._tool_schemas.copy()

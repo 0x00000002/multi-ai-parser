@@ -2,10 +2,10 @@
 Tool registry for managing available tools.
 """
 from typing import Dict, List, Any, Optional, Set, Callable, Union
-from ..core.interfaces import LoggerInterface, ToolStrategy
+from .interfaces import ToolStrategy
+from ..utils.logger import LoggerInterface, LoggerFactory
 from ..exceptions import AIToolError
 from .models import ToolDefinition, ToolResult
-from ..utils.logger import LoggerFactory
 
 
 class DefaultToolStrategy(ToolStrategy):
@@ -91,7 +91,8 @@ class ToolRegistry:
             tool_definition = ToolDefinition(
                 name=tool_name,
                 description=description,
-                parameters=parameters_schema
+                parameters_schema=parameters_schema,
+                function=tool_function
             )
             
             # Create tool implementation
@@ -111,6 +112,18 @@ class ToolRegistry:
             self._logger.error(f"Tool registration failed: {str(e)}")
             raise AIToolError(f"Failed to register tool {tool_name}: {str(e)}")
     
+    def has_tool(self, tool_name: str) -> bool:
+        """
+        Check if a tool exists in the registry.
+        
+        Args:
+            tool_name: Name of the tool to check
+            
+        Returns:
+            True if the tool exists, False otherwise
+        """
+        return tool_name in self._tools
+    
     def get_tool(self, tool_name: str) -> Optional[ToolStrategy]:
         """
         Get a tool implementation by name.
@@ -123,17 +136,55 @@ class ToolRegistry:
         """
         return self._tools.get(tool_name)
     
-    def get_tool_definition(self, tool_name: str) -> Optional[ToolDefinition]:
+    def get_tool_description(self, tool_name: str) -> Optional[str]:
         """
-        Get tool metadata by name.
+        Get the description of a tool.
         
         Args:
-            tool_name: Name of the tool to retrieve
+            tool_name: Name of the tool
             
         Returns:
-            Tool definition or None if not found
+            Tool description or None if not found
         """
-        return self._tools_metadata.get(tool_name)
+        tool = self._tools.get(tool_name)
+        return tool.get_description() if tool else None
+    
+    def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the parameters schema of a tool.
+        
+        Args:
+            tool_name: Name of the tool
+            
+        Returns:
+            Tool parameters schema or None if not found
+        """
+        tool = self._tools.get(tool_name)
+        return tool.get_schema() if tool else None
+    
+    def execute_tool(self, tool_name: str, **args) -> Any:
+        """
+        Execute a tool with the given arguments.
+        
+        Args:
+            tool_name: Name of the tool to execute
+            args: Arguments to pass to the tool
+            
+        Returns:
+            Tool execution result
+            
+        Raises:
+            AIToolError: If tool execution fails
+        """
+        tool = self.get_tool(tool_name)
+        if not tool:
+            raise AIToolError(f"Tool not found: {tool_name}")
+        
+        try:
+            return tool.execute(**args)
+        except Exception as e:
+            self._logger.error(f"Tool execution failed: {str(e)}")
+            raise AIToolError(f"Failed to execute tool {tool_name}: {str(e)}")
     
     def get_all_tools(self) -> Dict[str, ToolStrategy]:
         """
@@ -184,4 +235,4 @@ class ToolRegistry:
                 "parameters": tool_def.parameters
             })
             
-        return formatted_tools
+        return formatted_tools 

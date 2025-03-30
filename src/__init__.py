@@ -1,3 +1,7 @@
+"""
+AI Framework package.
+"""
+
 # This file can be empty or can re-export key components
 # If you want to make imports cleaner, you could add:
 

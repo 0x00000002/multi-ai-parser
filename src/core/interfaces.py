@@ -1,6 +1,5 @@
 """
-Core interfaces for the AI framework.
-Defines protocols that different components must implement.
+Core interfaces for AI and provider implementations.
 """
 from typing import Protocol, List, Dict, Any, Optional, Union, AsyncIterator
 from typing_extensions import runtime_checkable
@@ -19,7 +18,7 @@ class AIInterface(Protocol):
             options: Additional options for the request
             
         Returns:
-            The model's response as a string
+            The model's response (after any tool calls have been resolved)
         """
         ...
     
@@ -32,12 +31,21 @@ class AIInterface(Protocol):
             options: Additional options for the request
             
         Returns:
-            The complete streamed response as a string
+            The complete streamed response
         """
         ...
     
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
+        ...
+    
+    def get_conversation(self) -> List[Dict[str, str]]:
+        """
+        Get the conversation history.
+        
+        Returns:
+            List of messages
+        """
         ...
 
 
@@ -80,29 +88,30 @@ class AsyncAIInterface(Protocol):
 class ProviderInterface(Protocol):
     """Interface for AI providers."""
     
-    def request(self, messages: List[Dict[str, Any]], **options) -> Dict[str, Any]:
+    def request(self, messages: Union[str, List[Dict[str, Any]]], **options) -> Union[str, Dict[str, Any]]:
         """
-        Make a request to the provider.
+        Make a request to the AI model.
         
         Args:
-            messages: List of conversation messages
+            messages: The conversation messages or a simple string prompt
             options: Additional options for the request
             
         Returns:
-            Provider response object
+            Either a string response (when no tools are called) or 
+            a dictionary with 'content' and possibly 'tool_calls' for further processing
         """
         ...
     
-    def stream(self, messages: List[Dict[str, Any]], **options) -> str:
+    def stream(self, messages: Union[str, List[Dict[str, Any]]], **options) -> str:
         """
-        Stream a response from the provider.
+        Stream a response from the AI model.
         
         Args:
-            messages: List of conversation messages
+            messages: The conversation messages or a simple string prompt
             options: Additional options for the request
             
         Returns:
-            The complete streamed response as a string
+            Streamed response as a string
         """
         ...
 
@@ -175,64 +184,4 @@ class AsyncToolCapableProviderInterface(AsyncProviderInterface, Protocol):
         Returns:
             Updated conversation history
         """
-        ...
-
-
-@runtime_checkable
-class ToolStrategy(Protocol):
-    """Interface for tool implementations."""
-    
-    def execute(self, **args) -> Any:
-        """
-        Execute the tool with the provided arguments.
-        
-        Args:
-            args: Tool-specific arguments
-            
-        Returns:
-            Tool execution result
-        """
-        ...
-    
-    def get_description(self) -> str:
-        """
-        Get a description of the tool.
-        
-        Returns:
-            Tool description string
-        """
-        ...
-    
-    def get_schema(self) -> Dict[str, Any]:
-        """
-        Get the JSON schema for the tool parameters.
-        
-        Returns:
-            JSON schema as a dictionary
-        """
-        ...
-
-
-@runtime_checkable
-class LoggerInterface(Protocol):
-    """Interface for logging implementations."""
-    
-    def debug(self, message: str) -> None:
-        """Log a debug message."""
-        ...
-    
-    def info(self, message: str) -> None:
-        """Log an info message."""
-        ...
-    
-    def warning(self, message: str) -> None:
-        """Log a warning message."""
-        ...
-    
-    def error(self, message: str) -> None:
-        """Log an error message."""
-        ...
-    
-    def critical(self, message: str) -> None:
-        """Log a critical message."""
-        ...
+        ... 

@@ -2,7 +2,8 @@
 Tool manager for coordinating tool registration, discovery, and execution.
 """
 from typing import Dict, List, Any, Optional, Set, Union, Callable
-from ..core.interfaces import LoggerInterface, ToolStrategy
+from .interfaces import ToolStrategy
+from ..utils.logger import LoggerInterface, LoggerFactory
 from ..config.config_manager import ConfigManager
 from ..exceptions import AIToolError
 from .tool_finder import ToolFinder
@@ -10,7 +11,6 @@ from .tool_registry import ToolRegistry
 from .tool_executor import ToolExecutor
 from .tool_prompt_builder import ToolPromptBuilder
 from .models import ToolResult
-from ..utils.logger import LoggerFactory
 
 
 class ToolManager:
@@ -41,6 +41,10 @@ class ToolManager:
         self._tool_executor = tool_executor or ToolExecutor(self._logger)
         self._tool_finder = tool_finder
         self._auto_find_tools = False
+        
+        # Set available tools in tool finder if it exists
+        if self._tool_finder:
+            self._tool_finder.set_available_tools(self._tool_registry.get_all_tools())
     
     def enable_auto_tool_finding(self, enabled: bool = True, 
                                 tool_finder_model_id: Optional[str] = None) -> None:
@@ -57,6 +61,8 @@ class ToolManager:
                 config_manager=self._config_manager,
                 logger=self._logger
             )
+            # Set available tools in the new tool finder
+            self._tool_finder.set_available_tools(self._tool_registry.get_all_tools())
         self._auto_find_tools = enabled
         self._logger.info(f"Auto tool finding {'enabled' if enabled else 'disabled'}")
     
@@ -163,4 +169,4 @@ class ToolManager:
             return ToolPromptBuilder.build_enhanced_prompt(prompt, tools)
         except Exception as e:
             self._logger.error(f"Prompt enhancement failed: {str(e)}")
-            raise AIToolError(f"Failed to enhance prompt: {str(e)}")
+            raise AIToolError(f"Failed to enhance prompt: {str(e)}") 

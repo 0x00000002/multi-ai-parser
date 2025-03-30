@@ -3,12 +3,14 @@ Base AI implementation that handles common functionality.
 Implements the AIInterface and provides core conversation features.
 """
 from typing import Dict, List, Any, Optional, Union
-from .interfaces import AIInterface, ProviderInterface, LoggerInterface
+from .interfaces import AIInterface, ProviderInterface
+from ..utils.logger import LoggerInterface, LoggerFactory
 from ..config.config_manager import ConfigManager
+from ..config.models import Model
 from ..exceptions import AISetupError, AIProcessingError
-from ..conversation.conversation_manager import ConversationManager
-from ..providers.provider_factory import ProviderFactory
-from ..utils.logger import LoggerFactory
+from ..conversation.conversation_manager import ConversationManager, Message
+from .provider_factory import ProviderFactory
+from .providers.base_provider import BaseProvider
 import uuid
 
 
@@ -19,7 +21,7 @@ class AIBase(AIInterface):
     """
     
     def __init__(self, 
-                 model_id: Optional[str] = None, 
+                 model: Optional[Union[Model, str]] = None, 
                  system_prompt: Optional[str] = None,
                  config_manager: Optional[ConfigManager] = None,
                  logger: Optional[LoggerInterface] = None,
@@ -28,7 +30,7 @@ class AIBase(AIInterface):
         Initialize the base AI implementation.
         
         Args:
-            model_id: The model to use (or None for default)
+            model: The model to use (Model enum or string ID, or None for default)
             system_prompt: Custom system prompt (or None for default)
             config_manager: Configuration manager instance
             logger: Logger instance
@@ -38,18 +40,27 @@ class AIBase(AIInterface):
             AISetupError: If initialization fails
         """
         self._request_id = request_id or str(uuid.uuid4())
-        self._logger = logger or LoggerFactory.create(request_id=self._request_id)
+        # Create a logger with the appropriate name
+        self._logger = logger or LoggerFactory.create(name=f"ai_framework.{self._request_id[:8]}")
         self._config_manager = config_manager or ConfigManager()
         
         try:
             # Get model configuration
-            self._model_config = self._config_manager.get_model_config(model_id)
-            self._logger.info(f"Using model: {self._model_config.model_id}")
+            if model is None:
+                # Use default model if none specified
+                self._model_config = self._config_manager.get_model_config(self._config_manager.default_model)
+                self._logger.info(f"Using default model: {self._model_config.model_id}")
+            else:
+                # Determine the model key to use
+                model_key = model.value if isinstance(model, Model) else model
+                self._model_config = self._config_manager.get_model_config(model_key)
+                model_name = model.name if isinstance(model, Model) else model_key
+                self._logger.info(f"Using model: {model_name} ({self._model_config.model_id})")
             
             # Set up the provider
             self._provider = ProviderFactory.create(
                 provider_type=self._model_config.provider,
-                model_id=self._model_config.model_id,
+                model_id=model,  # Pass the original model (enum or string)
                 config_manager=self._config_manager,
                 logger=self._logger
             )
@@ -59,6 +70,13 @@ class AIBase(AIInterface):
             
             # Set system prompt
             self._system_prompt = system_prompt or self._get_default_system_prompt()
+            
+            # Add system prompt if provided
+            if self._system_prompt:
+                self._conversation_manager.add_message(
+                    role="system",
+                    content=self._system_prompt
+                )
             
         except Exception as e:
             self._logger.error(f"Failed to initialize AI: {str(e)}")
@@ -86,19 +104,22 @@ class AIBase(AIInterface):
         self._logger.info(f"Processing request: {prompt[:50]}...")
         
         try:
-            # Build messages with conversation history
-            messages = self._build_messages(prompt)
+            # Add user message
+            self._conversation_manager.add_message(role="user", content=prompt)
             
-            # Make the request to the provider
-            response = self._provider.request(messages, **options)
+            # Get response from provider
+            response = self._provider.request(self._conversation_manager.get_messages(), **options)
             
-            # Extract content from response
-            content = self._extract_content(response)
+            # Add assistant message
+            self._conversation_manager.add_message(
+                role="assistant",
+                content=response.get('content', '')
+            )
             
             # Update conversation history
-            self._conversation_manager.add_interaction(prompt, content)
+            self._conversation_manager.add_interaction(prompt, response.get('content', ''))
             
-            return content
+            return response.get('content', '')
             
         except Exception as e:
             self._logger.error(f"Request failed: {str(e)}")
@@ -121,11 +142,14 @@ class AIBase(AIInterface):
         self._logger.info(f"Processing streaming request: {prompt[:50]}...")
         
         try:
-            # Build messages with conversation history
-            messages = self._build_messages(prompt)
+            # Add user message
+            self._conversation_manager.add_message(role="user", content=prompt)
             
             # Stream the response
-            content = self._provider.stream(messages, **options)
+            content = self._provider.stream(self._conversation_manager.get_messages(), **options)
+            
+            # Add assistant message
+            self._conversation_manager.add_message(role="assistant", content=content)
             
             # Update conversation history
             self._conversation_manager.add_interaction(prompt, content)
@@ -140,42 +164,19 @@ class AIBase(AIInterface):
         """Reset the conversation history."""
         self._conversation_manager.reset()
         self._logger.info("Conversation history reset")
-    
-    def _build_messages(self, prompt: str) -> List[Dict[str, Any]]:
-        """
-        Build the message list for the provider.
         
-        Args:
-            prompt: The current user prompt
-            
-        Returns:
-            List of message dictionaries
-        """
-        messages = []
-        
-        # Add system prompt if set
+        # Restore system prompt if it exists
         if self._system_prompt:
-            messages.append({"role": "system", "content": self._system_prompt})
-        
-        # Add conversation history
-        history = self._conversation_manager.get_messages()
-        messages.extend(history)
-        
-        # Add the current user prompt
-        messages.append({"role": "user", "content": prompt})
-        
-        return messages
+            self._conversation_manager.add_message(
+                role="system",
+                content=self._system_prompt
+            )
     
-    def _extract_content(self, response: Dict[str, Any]) -> str:
+    def get_conversation(self) -> List[Dict[str, str]]:
         """
-        Extract content text from provider response.
+        Get the conversation history.
         
-        Args:
-            response: Provider response object
-            
         Returns:
-            Content string
+            List of messages
         """
-        # This is a simple implementation
-        # A more robust one would handle different response formats
-        return response.get("content", "")
+        return self._conversation_manager.get_messages()
