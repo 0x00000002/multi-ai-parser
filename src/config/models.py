@@ -1,6 +1,6 @@
 """
 Models module for the AI framework.
-This file is dynamically updated when the configuration is loaded.
+This file should be manually updated to reflect the models defined in the configuration.
 """
 from enum import Enum
 

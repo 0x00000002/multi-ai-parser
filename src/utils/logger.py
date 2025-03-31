@@ -6,30 +6,7 @@ from typing import Protocol, Optional, Dict, List, Union
 from typing_extensions import runtime_checkable
 from enum import Enum
 
-
-@runtime_checkable
-class LoggerInterface(Protocol):
-    """Interface for logging implementations."""
-    
-    def debug(self, message: str) -> None:
-        """Log a debug message."""
-        ...
-    
-    def info(self, message: str) -> None:
-        """Log an info message."""
-        ...
-    
-    def warning(self, message: str) -> None:
-        """Log a warning message."""
-        ...
-    
-    def error(self, message: str) -> None:
-        """Log an error message."""
-        ...
-    
-    def critical(self, message: str) -> None:
-        """Log a critical message."""
-        ...
+from .interfaces import LoggerInterface
 
 
 class LoggingLevel(Enum):
@@ -51,10 +28,12 @@ class LoggerFactory:
     Factory class to create and manage logger instances.
     """
     _instances: Dict[str, 'Logger'] = {}
+    _null_loggers: Dict[str, 'NullLogger'] = {}
+    _use_null_logger_by_default = True
 
     @classmethod
     def create(cls, name: str = None, level: LoggingLevel = LoggingLevel.INFO, 
-              format: LogFormat = LogFormat.SIMPLE) -> LoggerInterface:
+              format: LogFormat = LogFormat.SIMPLE, use_real_logger: bool = False) -> LoggerInterface:
         """
         Create a new logger instance.
         
@@ -62,11 +41,20 @@ class LoggerFactory:
             name: Logger name (optional)
             level: Logging level
             format: Log format
+            use_real_logger: Whether to create a real logger (False by default)
             
         Returns:
-            Logger instance
+            Logger instance or NullLogger if use_real_logger is False
         """
         name = name or "ai_framework"
+        
+        # Return NullLogger by default unless explicitly asked for a real logger
+        if not use_real_logger and cls._use_null_logger_by_default:
+            if name not in cls._null_loggers:
+                cls._null_loggers[name] = NullLogger()
+            return cls._null_loggers[name]
+        
+        # Create a real logger when requested
         if name not in cls._instances:
             cls._instances[name] = Logger(name, level, format)
         return cls._instances[name]
@@ -75,7 +63,18 @@ class LoggerFactory:
     def reset(cls) -> None:
         """Reset all loggers (useful for testing)."""
         cls._instances.clear()
+        cls._null_loggers.clear()
         
+    @classmethod
+    def enable_real_loggers(cls) -> None:
+        """Enable real logging (useful for debugging)."""
+        cls._use_null_logger_by_default = False
+        
+    @classmethod
+    def disable_real_loggers(cls) -> None:
+        """Disable real logging (default behavior)."""
+        cls._use_null_logger_by_default = True
+
 
 class NullLogger(LoggerInterface):
     """Logger that silently discards all messages."""

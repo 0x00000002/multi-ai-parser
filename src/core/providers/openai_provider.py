@@ -130,7 +130,7 @@ class OpenAIProvider(BaseProvider):
             
             # If there are no tool calls, just return the content as a string
             if not tool_calls:
-                return message.content or ""
+                return self.standardize_response(message.content or "")
             
             # Otherwise return the full response object for tool handling
             return result

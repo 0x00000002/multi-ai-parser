@@ -1,7 +1,8 @@
 """
 Utility module containing shared functionality.
 """
-from .logger import LoggerInterface, LoggerFactory, Logger, NullLogger
+from .interfaces import LoggerInterface
+from .logger import LoggerFactory, Logger, NullLogger
 
 __all__ = [
     'LoggerInterface',

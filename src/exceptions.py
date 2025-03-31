@@ -3,7 +3,7 @@ Custom exceptions for the AI framework.
 Provides a standardized error handling hierarchy with rich context.
 """
 from typing import Optional, Any, Dict, List, Union
-from datetime import datetime
+from datetime import datetime, UTC
 
 
 class AIError(Exception):
@@ -31,7 +31,7 @@ class AIError(Exception):
         self.provider = provider
         self.original_error = original_error
         self.context = context or {}
-        self.timestamp = timestamp or datetime.utcnow()
+        self.timestamp = timestamp or datetime.now(UTC)
         super().__init__(message)
     
     def to_dict(self) -> Dict[str, Any]:

@@ -8,9 +8,11 @@ import inspect
 from .base_ai import AIBase
 from ..exceptions import AIProcessingError, AIToolError
 from ..tools.models import ToolCall
+from ..prompts import PromptManager
+from ..conversation.response_parser import ResponseParser
 
 
-class ToolEnabledAI(AIBase):
+class AI(AIBase):
     """
     AI implementation with tool-calling capabilities.
     Can register and call tools based on the model's output.
@@ -22,6 +24,7 @@ class ToolEnabledAI(AIBase):
                  config_manager=None,
                  logger=None,
                  request_id=None,
+                 prompt_manager=None,
                  auto_find_tools=False):
         """
         Initialize the tool-enabled AI.
@@ -32,6 +35,7 @@ class ToolEnabledAI(AIBase):
             config_manager: Configuration manager instance
             logger: Logger instance
             request_id: Unique identifier for tracking this session
+            prompt_manager: PromptManager instance for templated prompts
             auto_find_tools: Whether to automatically find tools in the current scope
         """
         super().__init__(
@@ -39,7 +43,8 @@ class ToolEnabledAI(AIBase):
             system_prompt=system_prompt,
             config_manager=config_manager,
             logger=logger,
-            request_id=request_id
+            request_id=request_id,
+            prompt_manager=prompt_manager
         )
         
         self._tools = {}
@@ -154,8 +159,17 @@ class ToolEnabledAI(AIBase):
             raise AIToolError(f"Tool not found: {tool_name}")
         
         try:
-            # Parse arguments
-            args = json.loads(tool_call.arguments)
+            # Parse arguments - handle both string and dict formats
+            if isinstance(tool_call.arguments, str):
+                try:
+                    args = json.loads(tool_call.arguments)
+                except json.JSONDecodeError:
+                    # If not valid JSON, treat as a string
+                    self._logger.warning(f"Invalid JSON arguments: {tool_call.arguments}, trying to parse as is")
+                    args = tool_call.arguments
+            else:
+                # Already a dict
+                args = tool_call.arguments
             
             # Call the tool function
             self._logger.info(f"Calling tool: {tool_name} with args: {args}")
@@ -188,6 +202,10 @@ class ToolEnabledAI(AIBase):
         """
         self._logger.info(f"Processing tool-enabled request: {prompt[:50]}...")
         
+        # Set up tool definitions if supported
+        if self._supports_tools and self._tool_schemas:
+            options["tools"] = list(self._tool_schemas.values())
+        
         try:
             # Add user message
             self._conversation_manager.add_message(role="user", content=prompt)
@@ -197,13 +215,32 @@ class ToolEnabledAI(AIBase):
             
             # If the response is a string, it means no tools were needed
             if isinstance(response, str):
-                # Add assistant message directly
-                self._conversation_manager.add_message(role="assistant", content=response)
+                # Process the string response to handle thoughts
+                # parser = ResponseParser(logger=self._logger)
+                # parsed = parser.parse_response(
+                #     response,
+                #     extract_thoughts=True,
+                #     show_thinking=self._config_manager.show_thinking
+                # )
                 
-                # Update conversation history
-                self._conversation_manager.add_interaction(prompt, response)
+                # Get the processed content
+                processed_content = response
                 
-                return response
+                # Add assistant message with potential thoughts
+                self._conversation_manager.add_message(
+                    role="assistant",
+                    content=processed_content,
+                    extract_thoughts=False  # Already extracted
+                )
+                
+                # Update conversation history - Removed as messages are added individually
+                # self._conversation_manager.add_interaction(
+                #     prompt, 
+                #     processed_content,
+                #     extract_thoughts=False  # Already extracted
+                # )
+                
+                return processed_content
             
             # Handle tool calls if present
             if response.get('tool_calls'):
@@ -250,34 +287,119 @@ class ToolEnabledAI(AIBase):
                     content=final_content
                 )
                 
-                # Update conversation history
-                self._conversation_manager.add_interaction(prompt, final_content)
+                # Update conversation history - Removed as messages are added individually
+                # self._conversation_manager.add_interaction(prompt, final_content)
                 
                 return final_content
             
-            # If no tool calls but response is a dict, extract content
-            content = response.get('content', '')
-            
-            # Add assistant message
+            # Fallback to handling standard response
+            # Removed redundant parsing here, add_message handles it
+            # parser = ResponseParser(logger=self._logger)
+            raw_content = response.get('content', '')
+            # parsed = parser.parse_response(
+            #     raw_content,
+            #     extract_thoughts=True,
+            #     show_thinking=self._config_manager.show_thinking
+            # )
+            # final_content = parsed["content"]
+
+            # Add assistant message (letting manager handle internal storage and parsing)
             self._conversation_manager.add_message(
                 role="assistant",
-                content=content
+                content=raw_content, # Pass raw content for internal parsing
+                extract_thoughts=True,
+                show_thinking=self._config_manager.show_thinking
             )
-            
-            # Update conversation history
-            self._conversation_manager.add_interaction(prompt, content)
-            
-            return content
+
+            # Update conversation history - Removed as messages are added individually
+            # self._conversation_manager.add_interaction(
+            #     prompt,
+            #     raw_content,
+            #     extract_thoughts=True,
+            #     show_thinking=self._config_manager.show_thinking
+            # )
+
+            # Need to return the parsed content, which add_message doesn't return
+            # Let's get the last message added which contains the parsed content
+            last_message = self._conversation_manager.get_last_message()
+            final_content = last_message['content'] if last_message else ''
+
+            return final_content
             
         except Exception as e:
             self._logger.error(f"Tool-enabled request failed: {str(e)}")
-            raise AIProcessingError(f"Request failed: {str(e)}")
+            raise AIProcessingError(f"Failed to process tool-enabled request: {str(e)}")
+    
+    def request_with_template(self, 
+                             template_id: str, 
+                             variables: Optional[Dict[str, Any]] = None,
+                             user_id: Optional[str] = None,
+                             **options) -> str:
+        """
+        Make a tool-enabled request using a prompt template.
+        
+        Args:
+            template_id: ID of the template to use
+            variables: Variables for the template
+            user_id: User ID for A/B testing
+            options: Additional options for the request
+            
+        Returns:
+            The model's response as a string
+            
+        Raises:
+            ValueError: If prompt_manager is not set or template not found
+        """
+        if not self._prompt_manager:
+            raise ValueError("No prompt manager set. Use set_prompt_manager() first.")
+        
+        # Start timing for metrics
+        import time
+        start_time = time.time()
+        
+        # Get rendered prompt from template
+        rendered_prompt, usage_id = self._prompt_manager.render_prompt(
+            template_id=template_id,
+            variables=variables,
+            user_id=user_id,
+            context={"model": self._model_config.model_id, "tools": list(self._tool_schemas.keys())}
+        )
+        
+        self._logger.info(f"Using template {template_id} with variables: {variables}")
+        
+        # Set up tool definitions if supported
+        if self._supports_tools and self._tool_schemas:
+            options["tools"] = list(self._tool_schemas.values())
+        
+        # Make the request with the rendered prompt
+        response = self.request(rendered_prompt, **options)
+        
+        # Calculate metrics
+        end_time = time.time()
+        latency = end_time - start_time
+        
+        # Record metrics if we have a usage ID
+        if usage_id:
+            metrics = {
+                "latency": latency,
+                "model": self._model_config.model_id,
+                "tools_enabled": self._supports_tools,
+                "tool_count": len(self._tool_schemas)
+            }
+            
+            # Record performance
+            self._prompt_manager.record_prompt_performance(
+                usage_id=usage_id,
+                metrics=metrics
+            )
+        
+        return response
     
     def get_tools(self) -> Dict[str, Dict[str, Any]]:
         """
-        Get registered tool schemas.
+        Get all registered tools and their schemas.
         
         Returns:
             Dictionary of tool schemas
         """
-        return self._tool_schemas.copy()
+        return self._tool_schemas

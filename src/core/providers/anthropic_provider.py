@@ -102,7 +102,7 @@ class AnthropicProvider(BaseProvider):
             
             # If there are no tool calls, just return the content as a string
             if not tool_calls:
-                return content.text
+                return self.standardize_response(content.text)
             
             # Otherwise return the full response object for tool handling
             return result

@@ -5,25 +5,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional, Any, Tuple
 from ..config.config_manager import ConfigManager, ModelConfig, Model
 from ..exceptions import AISetupError
-
-
-class Model(str, Enum):
-    """Available AI models in the system."""
-    CLAUDE_3_7_SONNET = "claude-3-7-sonnet"
-    CLAUDE_3_5_SONNET = "claude-3-5-sonnet"
-    CLAUDE_3_5_HAIKU = "claude-3-5-haiku"
-    O3_MINI = "o3-mini"
-    GPT_4O_MINI = "gpt-4o-mini"
-    GEMMA_3 = "gemma3"
-    DEEPSEEK_32B = "deepseek-32b"
-    
-    @classmethod
-    def from_string(cls, name: str) -> 'Model':
-        """Convert string to Model enum."""
-        try:
-            return cls[name.upper().replace(" ", "_").replace("-", "_")]
-        except KeyError:
-            raise ValueError(f"Unknown model: {name}")
+from src.config.models import Model as ModelEnum
 
 
 class UseCase(Enum):
@@ -61,6 +43,42 @@ class ModelSelector:
             config_manager: Configuration manager instance
         """
         self._config_manager = config_manager
+        # Build a mapping between config model_ids and Model enum values
+        self._model_id_to_enum = self._build_model_mapping()
+    
+    def _build_model_mapping(self) -> Dict[str, ModelEnum]:
+        """
+        Build a mapping from config model_ids to Model enum values.
+        
+        This approach decouples the naming conventions in the config 
+        from the enum values by creating a direct lookup table.
+        
+        Returns:
+            Dictionary mapping model_id strings to Model enum values
+        """
+        mapping = {}
+        config_models = self._config_manager.get_all_models()
+        
+        # First try to find exact matches
+        for model_key, model_config in config_models.items():
+            model_id = model_config.model_id
+            
+            # Try direct match first
+            for enum_model in ModelEnum:
+                if enum_model.value == model_id:
+                    mapping[model_id] = enum_model
+                    break
+        
+        # For any unmatched model_ids, use the config key as a fallback to find a match
+        for model_key, model_config in config_models.items():
+            model_id = model_config.model_id
+            if model_id not in mapping:
+                for enum_model in ModelEnum:
+                    if enum_model.name.lower() == model_key.replace('-', '_').lower():
+                        mapping[model_id] = enum_model
+                        break
+        
+        return mapping
     
     def select_model(self,
                     use_case: UseCase,
@@ -89,7 +107,6 @@ class ModelSelector:
         # Get base parameters from use case configuration
         use_case_name = use_case.name.lower()
         params = self._config_manager.get_use_case_config(use_case_name)
-        
         # Override with explicit parameters if provided
         if quality:
             params['quality'] = quality
@@ -100,7 +117,6 @@ class ModelSelector:
         
         # Get all available models
         models = self._config_manager.get_all_models()
-        
         # Filter models based on requirements
         candidates = self._filter_models(models, params)
         
@@ -111,6 +127,7 @@ class ModelSelector:
                 f"speed={params['speed']}, "
                 f"privacy={params.get('privacy', 'EXTERNAL')}"
             )
+        
         
         # Apply cost constraints if specified
         if max_cost is not None and estimated_tokens is not None:
@@ -127,8 +144,24 @@ class ModelSelector:
                 )
         
         # Select the best matching model
-        model_id = self._select_best_model(candidates, params)
-        return Model(model_id)
+        model = self._select_best_model(candidates, params)
+        
+        # Get the model_id from the selected candidate
+        model_id = candidates[0].model_id
+        
+        # Look up the model_id in our mapping
+        if model_id in self._model_id_to_enum:
+            return self._model_id_to_enum[model_id]
+            
+        # If the model_id isn't in our mapping, try to find a match in the enum values directly
+        try:
+            return Model(model_id)
+        except ValueError:
+            # If we can't find a direct match, raise a clear error
+            raise AISetupError(
+                f"No matching Model enum found for model_id '{model_id}'. "
+                f"Please update the Model enum in src/config/models.py to include this model ID exactly."
+            )
     
     def _filter_models(self, 
                       models: Dict[str, ModelConfig], 
@@ -194,8 +227,8 @@ class ModelSelector:
             ),
             reverse=True
         )
-        
-        return candidates[0].model_id
+        return candidates[0]
+        # return candidates[0].model_id
     
     def get_system_prompt(self, use_case: UseCase) -> str:
         """

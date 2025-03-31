@@ -101,6 +101,29 @@ class BaseProvider(ProviderInterface):
         """
         return bool(response.get('tool_calls', []))
     
+    def standardize_response(self, response: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Ensure all provider responses have a consistent format.
+        
+        Args:
+            response: Provider response (string or dictionary)
+            
+        Returns:
+            Standardized response dictionary with at least a 'content' key
+        """
+        # If the response is already a dictionary, ensure it has a content key
+        if isinstance(response, dict):
+            if 'content' not in response:
+                response['content'] = response.get('text', '')
+            return response
+        
+        # If the response is a string, convert it to a dictionary with content key
+        if isinstance(response, str):
+            return {'content': response, 'tool_calls': []}
+            
+        # Default case - empty response
+        return {'content': '', 'tool_calls': []}
+    
     def request(self, messages: Union[str, List[Dict[str, Any]]], **options) -> Union[str, Dict[str, Any]]:
         """
         Make a request to the AI model.

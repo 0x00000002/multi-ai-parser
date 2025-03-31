@@ -106,9 +106,8 @@ class OllamaProvider(BaseProvider):
             else:
                 content = data.get("response", "")
             
-            # Ollama doesn't support tool calls natively,
-            # so we can just return the string response
-            return content
+            # Standardize the response format
+            return self.standardize_response(content)
             
         except Exception as e:
             self._logger.error(f"Ollama request failed: {str(e)}")
@@ -175,7 +174,8 @@ class OllamaProvider(BaseProvider):
                     except json.JSONDecodeError:
                         pass
             
-            return content
+            # Standardize the response format
+            return self.standardize_response(content)
             
         except Exception as e:
             self._logger.error(f"Ollama streaming failed: {str(e)}")

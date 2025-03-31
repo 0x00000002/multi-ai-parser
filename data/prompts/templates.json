@@ -1,0 +1,68 @@
+{
+  "253bc686-e859-42f2-aac0-31bfe15078b5": {
+    "template_id": "253bc686-e859-42f2-aac0-31bfe15078b5",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-03-30T22:49:41.151489",
+    "updated_at": "2025-03-30T22:49:43.140088"
+  },
+  "d5ebfec6-af07-4f7d-8f6c-5a1092129e5e": {
+    "template_id": "d5ebfec6-af07-4f7d-8f6c-5a1092129e5e",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-03-30T22:51:18.993438",
+    "updated_at": "2025-03-30T22:51:19.812193"
+  },
+  "6659f7d9-b3d6-4bab-b787-c076afb4bbae": {
+    "template_id": "6659f7d9-b3d6-4bab-b787-c076afb4bbae",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-03-31T00:38:49.866942",
+    "updated_at": "2025-03-31T00:38:51.217013"
+  },
+  "9e87b118-b2db-40cc-a95f-1285fe4d8256": {
+    "template_id": "9e87b118-b2db-40cc-a95f-1285fe4d8256",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-03-31T03:32:00.329657",
+    "updated_at": "2025-03-31T03:32:02.162316"
+  },
+  "7b25cd64-2eae-4faa-b635-a9713996f9f6": {
+    "template_id": "7b25cd64-2eae-4faa-b635-a9713996f9f6",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-03-31T11:15:59.685088",
+    "updated_at": "2025-03-31T11:16:00.417417"
+  },
+  "268c5613-f69a-44f6-9026-66ab5cbe1c23": {
+    "template_id": "268c5613-f69a-44f6-9026-66ab5cbe1c23",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-03-31T11:21:06.684547",
+    "updated_at": "2025-03-31T11:21:07.539123"
+  }
+}

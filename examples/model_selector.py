@@ -1,33 +1,30 @@
-from src.ai.enhanced_ai import AI
-from src.ai.ai_config import Quality, Speed, Model, Privacy
-from src.ai.model_selector import UseCase
-from src.logger import LoggerFactory, LoggingLevel, LogFormat
-import logging  # Add this import
+from src.core.tool_enabled_ai import AI
+from src.config.models import Model
+from src.config.config_manager import Quality, Speed
+from src.core.model_selector import UseCase, ModelSelector
+from src.utils.logger import LoggerFactory, LoggingLevel, LogFormat
+from src.config.config_manager import ConfigManager
 
 # Example usage with shared model selection
 def main():
     
-    simple_logger = LoggerFactory.get_logger("logger", LoggingLevel.INFO, LogFormat.SIMPLE)
-    debugger = LoggerFactory.get_logger("debugger", LoggingLevel.DEBUG, LogFormat.VERBOSE)
-    
+    # Create a logger with DEBUG level - explicitly using real logger
+    simple_logger = LoggerFactory.create("logger", LoggingLevel.INFO, LogFormat.SIMPLE, use_real_logger=False)
+    debugger = LoggerFactory.create("debugger", LoggingLevel.DEBUG, LogFormat.VERBOSE, use_real_logger=True)
     
     # Example 1: Using AI with use cases
-    simple_logger.info("\n------------------------------- Example 1: -------------------------------")
-    translation_ai = AI.for_use_case(use_case=UseCase.TRANSLATION, quality=Quality.HIGH, speed=Speed.FAST, logger=debugger)
-    assert translation_ai.model == Model.CHATGPT_O3_MINI
+    config_manager = ConfigManager(config_path="src/config/config.yml", logger=simple_logger)
+    model_selector = ModelSelector(config_manager)
+    model = model_selector.select_model(use_case=UseCase.TRANSLATION, quality=Quality.HIGH, speed=Speed.FAST)
+    
+    translation_ai = AI(model, logger=simple_logger)
+    
+    # assert translation_ai.model == Model.CHATGPT_O3_MINI
     result = translation_ai.request("Translate 'Hello, how are you?' to Spanish")
     print(result)
     result = translation_ai.request("To Russian?")
     print(result)
 
-    # simple_logger.info("\n------------------------------- Example 2: -------------------------------")
-
-    coding_ai = AI.for_use_case(use_case=UseCase.CODING)
-    print(coding_ai.model)
-    assert coding_ai.model == Model.CHATGPT_O3_MINI
-    coding_ai.logger = debugger
-    code_result = coding_ai.request("Generate a picture of elephants")
-    print(code_result)
 
 if __name__ == "__main__":
     main()

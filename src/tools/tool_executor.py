@@ -20,11 +20,12 @@ class ToolExecutor:
         """
         self._logger = logger
     
-    def execute(self, tool: ToolStrategy, **args) -> ToolResult:
+    def execute(self, tool_name: str, tool: ToolStrategy, **args) -> ToolResult:
         """
         Execute a tool with the given arguments.
         
         Args:
+            tool_name: The name of the tool being executed
             tool: The tool to execute
             args: Arguments to pass to the tool
             
@@ -41,7 +42,7 @@ class ToolExecutor:
             return ToolResult(
                 success=True,
                 result=result,
-                tool_name=tool.get_name() if hasattr(tool, 'get_name') else None
+                tool_name=tool_name
             )
             
         except Exception as e:
@@ -50,5 +51,5 @@ class ToolExecutor:
                 success=False,
                 result=None,
                 error=str(e),
-                tool_name=tool.get_name() if hasattr(tool, 'get_name') else None
+                tool_name=tool_name
             ) 

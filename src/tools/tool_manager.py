@@ -6,7 +6,8 @@ from .interfaces import ToolStrategy
 from ..utils.logger import LoggerInterface, LoggerFactory
 from ..config.config_manager import ConfigManager
 from ..exceptions import AIToolError
-from .tool_finder import ToolFinder
+# from .tool_finder import ToolFinder # Old simple finder
+from .ai_tool_finder import AIToolFinder # New AI-powered finder
 from .tool_registry import ToolRegistry
 from .tool_executor import ToolExecutor
 from .tool_prompt_builder import ToolPromptBuilder
@@ -23,7 +24,7 @@ class ToolManager:
                  logger: Optional[LoggerInterface] = None,
                  config_manager: Optional[ConfigManager] = None,
                  tool_registry: Optional[ToolRegistry] = None,
-                 tool_finder: Optional[ToolFinder] = None,
+                 tool_finder: Optional[AIToolFinder] = None,
                  tool_executor: Optional[ToolExecutor] = None):
         """
         Initialize the tool manager.
@@ -44,7 +45,7 @@ class ToolManager:
         
         # Set available tools in tool finder if it exists
         if self._tool_finder:
-            self._tool_finder.set_available_tools(self._tool_registry.get_all_tools())
+            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
     
     def enable_auto_tool_finding(self, enabled: bool = True, 
                                 tool_finder_model_id: Optional[str] = None) -> None:
@@ -56,13 +57,27 @@ class ToolManager:
             tool_finder_model_id: Model ID to use for tool finding
         """
         if enabled and not self._tool_finder:
-            self._tool_finder = ToolFinder(
+            if not tool_finder_model_id:
+                # Attempt to get a default model from config or raise error
+                # This logic might need refinement based on how defaults are handled
+                default_model_id = self._config_manager.get_default_model_id() # Assuming such a method exists
+                if not default_model_id:
+                    raise AIToolError("A tool finder model ID must be provided when enabling auto tool finding and no default is set.")
+                tool_finder_model_id = default_model_id
+                self._logger.info(f"Using default model '{tool_finder_model_id}' for AIToolFinder.")
+
+            self._tool_finder = AIToolFinder(
                 model_id=tool_finder_model_id,
                 config_manager=self._config_manager,
                 logger=self._logger
             )
             # Set available tools in the new tool finder
-            self._tool_finder.set_available_tools(self._tool_registry.get_all_tools())
+            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
+        
+        # Update existing tool finder's available tools if re-enabled or tools changed
+        elif enabled and self._tool_finder:
+            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
+
         self._auto_find_tools = enabled
         self._logger.info(f"Auto tool finding {'enabled' if enabled else 'disabled'}")
     
@@ -91,6 +106,10 @@ class ToolManager:
         except Exception as e:
             self._logger.error(f"Tool registration failed: {str(e)}")
             raise AIToolError(f"Failed to register tool {tool_name}: {str(e)}")
+        
+        # Update tool finder if it exists
+        if self._tool_finder:
+            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
     
     @property
     def auto_find_tools(self) -> bool:
@@ -117,6 +136,7 @@ class ToolManager:
         try:
             return self._tool_finder.find_tools(prompt, conversation_history)
         except Exception as e:
+            # Catch specific AIToolError from finder if needed for different handling
             self._logger.error(f"Tool finding failed: {str(e)}")
             return set()  # Return empty set on error
     
@@ -141,7 +161,7 @@ class ToolManager:
                 raise AIToolError(f"Tool not found: {tool_name}")
             
             # Execute the tool
-            return self._tool_executor.execute(tool, **args)
+            return self._tool_executor.execute(tool_name, tool, **args)
         except Exception as e:
             self._logger.error(f"Tool execution failed: {str(e)}")
             return ToolResult(
@@ -165,8 +185,17 @@ class ToolManager:
             AIToolError: If prompt enhancement fails
         """
         try:
-            tools = [self._tool_registry.get_tool(name) for name in tool_names if self._tool_registry.get_tool(name)]
-            return ToolPromptBuilder.build_enhanced_prompt(prompt, tools)
+            tools_with_names = []
+            for name in tool_names:
+                tool = self._tool_registry.get_tool(name)
+                if tool:
+                    tools_with_names.append((name, tool))
+            
+            if not tools_with_names: # Return original prompt if no valid tools found
+                self._logger.warning(f"No valid tools found for names: {tool_names}")
+                return prompt
+                
+            return ToolPromptBuilder.build_enhanced_prompt(prompt, tools_with_names)
         except Exception as e:
             self._logger.error(f"Prompt enhancement failed: {str(e)}")
             raise AIToolError(f"Failed to enhance prompt: {str(e)}") 

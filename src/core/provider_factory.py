@@ -83,17 +83,4 @@ class ProviderFactory:
             )
             
         except Exception as e:
-            raise AISetupError(f"Failed to create provider: {str(e)}")
-    
-    @staticmethod
-    def get_content(response: Union[Dict[str, Any], str]) -> str:
-        """
-        Extract content from a provider response.
-        
-        Args:
-            response: Provider response (dictionary or string)
-            
-        Returns:
-            Content string
-        """
-        return BaseProvider.get_content(response) 
+            raise AISetupError(f"Failed to create provider: {str(e)}") 

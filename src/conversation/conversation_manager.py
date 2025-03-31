@@ -5,6 +5,7 @@ from typing import Dict, List, Any, Optional
 from ..utils.logger import LoggerInterface, LoggerFactory
 from ..exceptions import ConversationError
 from dataclasses import dataclass
+from .response_parser import ResponseParser
 
 
 @dataclass
@@ -13,6 +14,7 @@ class Message:
     role: str
     content: str
     name: Optional[str] = None
+    thoughts: Optional[str] = None
 
 
 class ConversationManager:
@@ -29,8 +31,15 @@ class ConversationManager:
         self._messages: List[Message] = []
         self._metadata: Dict[str, Any] = {}
         self._context: Dict[str, Any] = {}
+        self._response_parser = ResponseParser(logger=self._logger)
     
-    def add_message(self, role: str, content: str, name: Optional[str] = None, **kwargs) -> None:
+    def add_message(self, 
+                   role: str, 
+                   content: str, 
+                   name: Optional[str] = None,
+                   extract_thoughts: bool = True,
+                   show_thinking: bool = False,
+                   **kwargs) -> None:
         """
         Add a message to the conversation history.
         
@@ -38,22 +47,49 @@ class ConversationManager:
             role: The role of the message sender (e.g., 'user', 'assistant')
             content: The message content
             name: Optional name for the message (e.g., tool name)
+            extract_thoughts: Whether to extract thoughts from the content
+            show_thinking: Whether to include thoughts in the response content
             **kwargs: Additional message metadata
         """
-        message = Message(role=role, content=content, name=name)
+        if extract_thoughts and role == "assistant":
+            parsed = self._response_parser.parse_response(
+                content,
+                extract_thoughts=extract_thoughts,
+                show_thinking=show_thinking
+            )
+            message = Message(
+                role=role,
+                content=parsed["content"],
+                name=name,
+                thoughts=parsed.get("thoughts")
+            )
+        else:
+            message = Message(role=role, content=content, name=name)
+            
         self._messages.append(message)
         self._logger.debug(f"Added {role} message to conversation")
     
-    def add_interaction(self, user_message: str, assistant_message: str) -> None:
+    def add_interaction(self, 
+                       user_message: str, 
+                       assistant_message: str,
+                       extract_thoughts: bool = True,
+                       show_thinking: bool = False) -> None:
         """
         Add a user-assistant interaction to the conversation.
         
         Args:
             user_message: The user's message
             assistant_message: The assistant's response
+            extract_thoughts: Whether to extract thoughts from the assistant's response
+            show_thinking: Whether to include thoughts in the response content
         """
         self.add_message(role="user", content=user_message)
-        self.add_message(role="assistant", content=assistant_message)
+        self.add_message(
+            role="assistant", 
+            content=assistant_message,
+            extract_thoughts=extract_thoughts,
+            show_thinking=show_thinking
+        )
         self._logger.debug("Added user-assistant interaction to conversation")
     
     def get_messages(self) -> List[Dict[str, Any]]:
@@ -67,7 +103,8 @@ class ConversationManager:
             {
                 "role": msg.role,
                 "content": msg.content,
-                "name": msg.name
+                "name": msg.name,
+                "thoughts": msg.thoughts
             }
             for msg in self._messages
             if msg.name is not None or msg.role != "tool"
@@ -86,7 +123,8 @@ class ConversationManager:
         return {
             "role": last_msg.role,
             "content": last_msg.content,
-            "name": last_msg.name
+            "name": last_msg.name,
+            "thoughts": last_msg.thoughts
         }
     
     def clear_messages(self) -> None:

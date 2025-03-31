@@ -1,0 +1,206 @@
+{
+  "253bc686-e859-42f2-aac0-31bfe15078b5": [
+    {
+      "template_id": "253bc686-e859-42f2-aac0-31bfe15078b5",
+      "version_id": "e41d04f4-9ea9-4b8a-bc0f-1914edccd695",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-30T22:49:41.151529",
+      "is_active": false
+    },
+    {
+      "template_id": "253bc686-e859-42f2-aac0-31bfe15078b5",
+      "version_id": "e6efb2d3-c51d-472e-ae0a-1ba651a66efa",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-30T22:49:43.140066",
+      "is_active": true
+    }
+  ],
+  "d5ebfec6-af07-4f7d-8f6c-5a1092129e5e": [
+    {
+      "template_id": "d5ebfec6-af07-4f7d-8f6c-5a1092129e5e",
+      "version_id": "c8696345-7c48-4e18-8ac4-9bb9e00c60b5",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-30T22:51:18.993467",
+      "is_active": false
+    },
+    {
+      "template_id": "d5ebfec6-af07-4f7d-8f6c-5a1092129e5e",
+      "version_id": "96be69ae-08a8-47a0-9c8c-cbc95d3a183a",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-30T22:51:19.812182",
+      "is_active": true
+    }
+  ],
+  "6659f7d9-b3d6-4bab-b787-c076afb4bbae": [
+    {
+      "template_id": "6659f7d9-b3d6-4bab-b787-c076afb4bbae",
+      "version_id": "161dd808-e120-40f2-96d7-54b97c64b701",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T00:38:49.866965",
+      "is_active": false
+    },
+    {
+      "template_id": "6659f7d9-b3d6-4bab-b787-c076afb4bbae",
+      "version_id": "11f6e9c4-e90c-4d11-9e57-ed9a8d35d0c4",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T00:38:51.217002",
+      "is_active": true
+    }
+  ],
+  "9e87b118-b2db-40cc-a95f-1285fe4d8256": [
+    {
+      "template_id": "9e87b118-b2db-40cc-a95f-1285fe4d8256",
+      "version_id": "6588f61d-9243-46cf-aa87-d7601506912f",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T03:32:00.329686",
+      "is_active": false
+    },
+    {
+      "template_id": "9e87b118-b2db-40cc-a95f-1285fe4d8256",
+      "version_id": "7f6826e5-e397-4d51-9425-eb239cd960bc",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T03:32:02.162294",
+      "is_active": true
+    }
+  ],
+  "7b25cd64-2eae-4faa-b635-a9713996f9f6": [
+    {
+      "template_id": "7b25cd64-2eae-4faa-b635-a9713996f9f6",
+      "version_id": "f726a44e-b840-4a12-b692-b751c8bac488",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T11:15:59.685113",
+      "is_active": false
+    },
+    {
+      "template_id": "7b25cd64-2eae-4faa-b635-a9713996f9f6",
+      "version_id": "13c63c0e-a314-4a4e-96c9-9c76953de7d7",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T11:16:00.417396",
+      "is_active": true
+    }
+  ],
+  "268c5613-f69a-44f6-9026-66ab5cbe1c23": [
+    {
+      "template_id": "268c5613-f69a-44f6-9026-66ab5cbe1c23",
+      "version_id": "b7d4a8fa-a5bc-4be4-9d9d-0b327b382f5c",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T11:21:06.684574",
+      "is_active": false
+    },
+    {
+      "template_id": "268c5613-f69a-44f6-9026-66ab5cbe1c23",
+      "version_id": "0df54c81-5486-455c-af43-f65880bad7d3",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-03-31T11:21:07.539103",
+      "is_active": true
+    }
+  ]
+}
