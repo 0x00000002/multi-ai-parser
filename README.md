@@ -2,6 +2,10 @@
 
 A modular framework for building AI applications with tool integration capabilities.
 
+## HTML documentation
+
+[Documentation HTML website](./../site/index.html)
+
 ## Overview
 
 Agentic-AI is a Python library designed to create AI-powered applications that can:
@@ -22,10 +26,7 @@ Agentic-AI is a Python library designed to create AI-powered applications that c
 ## Installation
 
 ```bash
-# With conda
-conda env create -f environment.yml
-
-# Or with pip
+# With pip
 pip install -r requirements.txt
 
 # For development installation
