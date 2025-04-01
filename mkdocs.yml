@@ -1,0 +1,39 @@
+site_name: Agentic-AI Documentation
+site_description: Documentation for the Agentic-AI framework
+site_author: Agentic-AI Team
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Examples: examples.md
+  - Tools:
+    - Overview: tools/overview.md
+    - Auto Tool Finding: tools/auto_tool_finding.md
+  - Prompts:
+    - Management: prompts/management.md
+  - Providers:
+    - Overview: providers/overview.md
+  - Conversations:
+    - Overview: conversations/overview.md
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed
+  - pymdownx.critic
+  - admonition
+
+plugins:
+  - search
+
+repo_url: https://github.com/your-username/agentic-ai

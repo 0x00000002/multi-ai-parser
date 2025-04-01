@@ -1,0 +1,185 @@
+# Usage Examples
+
+This page presents practical examples of using Agentic-AI in different scenarios.
+
+## Basic AI Interaction
+
+```python
+from src.config.models import Model
+from src.config.config_manager import ConfigManager
+from src.core.tool_enabled_ai import AI
+from src.utils.logger import LoggerFactory
+
+# Set up logger
+logger = LoggerFactory.create()
+
+# Initialize ConfigManager
+config_manager = ConfigManager()
+
+# Create AI instance
+ai = AI(
+    model=Model.CLAUDE_3_7_SONNET,
+    config_manager=config_manager,
+    logger=logger
+)
+
+# Send a request
+response = ai.request("What is the capital of France?")
+print(response)
+```
+
+## Creating a Weather Assistant
+
+```python
+from src.config.models import Model
+from src.core.tool_enabled_ai import AI
+
+# Create a weather assistant
+ai = AI(
+    model=Model.GPT_4O,
+    system_prompt="You are a helpful weather assistant. Your goal is to provide weather information."
+)
+
+# Define weather tool
+def get_weather(location: str) -> str:
+    """Get current weather for a location (mocked for example)"""
+    # In a real application, this would call a weather API
+    weather_data = {
+        "New York": "Sunny, 75°F",
+        "London": "Rainy, 62°F",
+        "Tokyo": "Partly cloudy, 80°F",
+        "Paris": "Clear skies, 70°F"
+    }
+    return weather_data.get(location, f"Weather data not available for {location}")
+
+# Register weather tool
+ai.register_tool(
+    tool_name="get_weather",
+    tool_function=get_weather,
+    description="Get current weather for a specific location",
+    parameters_schema={
+        "type": "object",
+        "properties": {
+            "location": {
+                "type": "string",
+                "description": "City or location name"
+            }
+        },
+        "required": ["location"]
+    }
+)
+
+# Use the weather assistant
+response = ai.request("What's the weather like in Tokyo today?")
+print(response)
+```
+
+## AI with Auto Tool Finding
+
+This example demonstrates using `AIToolFinder` to automatically select relevant tools.
+
+```python
+from src.config.models import Model
+from src.config.config_manager import ConfigManager
+from src.core.tool_enabled_ai import AI
+from src.utils.logger import LoggerFactory
+
+# Set up
+logger = LoggerFactory.create()
+config_manager = ConfigManager()
+
+# Create AI with auto tool finding
+ai = AI(
+    model=Model.CLAUDE_3_7_SONNET,
+    system_prompt="You are a helpful assistant. Use tools when appropriate to answer user queries.",
+    config_manager=config_manager,
+    logger=logger,
+    auto_find_tools=True  # Enable auto tool finding
+)
+
+# Register multiple tools
+def get_weather(location: str) -> str:
+    """Get the current weather for a location."""
+    return f"It's sunny in {location} today!"
+
+def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression."""
+    try:
+        result = eval(expression)
+        return f"The result of {expression} is {result}"
+    except:
+        return "Sorry, I couldn't evaluate that expression."
+
+def get_ticket_price(destination: str) -> str:
+    """Get ticket price for a destination."""
+    return f"A ticket to {destination} costs $1000 USD"
+
+# Register all tools
+ai.register_tool("get_weather", get_weather, "Get weather for a location")
+ai.register_tool("calculate", calculate, "Perform calculations")
+ai.register_tool("get_ticket_price", get_ticket_price, "Get ticket price information")
+
+# The AI will automatically select the appropriate tool
+response = ai.request("How much does a ticket to New York cost?")
+print(response)
+
+# Try another query
+response = ai.request("What's 125 * 37?")
+print(response)
+```
+
+## Using Prompt Templates
+
+This example shows how to use the prompt management system.
+
+```python
+from src.config.models import Model
+from src.prompts import PromptManager
+from src.core.tool_enabled_ai import AI
+
+# Initialize prompt manager
+prompt_manager = PromptManager(storage_dir="data/prompts")
+
+# Create a template for customer support
+template_id = prompt_manager.create_template(
+    name="Customer Support",
+    description="Template for answering customer support questions",
+    template="You are a customer support agent for {{company}}. Answer this customer question: {{question}}",
+    default_values={"company": "Acme Corp"}
+)
+
+# Create AI with prompt manager
+ai = AI(
+    model=Model.CLAUDE_3_7_SONNET,
+    prompt_manager=prompt_manager
+)
+
+# Use the template
+response = ai.request_with_template(
+    template_id=template_id,
+    variables={
+        "question": "How do I reset my password?",
+        "company": "TechGiant Inc."
+    }
+)
+print(response)
+
+# Create an alternative version for A/B testing
+prompt_manager.create_version(
+    template_id=template_id,
+    template_string="As a {{company}} support representative, please help with: {{question}}",
+    name="Alternative Wording",
+    description="Different wording to test effectiveness"
+)
+
+# The A/B testing is handled automatically when user_id is provided
+response = ai.request_with_template(
+    template_id=template_id,
+    variables={
+        "question": "How do I cancel my subscription?",
+        "company": "TechGiant Inc."
+    },
+    user_id="user-123"  # This determines which version they get
+)
+print(response)
+```
