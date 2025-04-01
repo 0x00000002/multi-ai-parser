@@ -19,19 +19,6 @@ Agentic-AI is a Python library designed to create AI-powered applications that c
 - **Prompt Management**: Create, version, and track performance of prompt templates
 - **Conversation Management**: Maintain context across multiple interactions
 
-## Installation
+## HTML documentation
 
-```bash
-# With conda
-conda env create -f environment.yml
-
-# Or with pip
-pip install -r requirements.txt
-
-# For development installation
-pip install -e .
-```
-
-## Quick Start
-
-Check the [Getting Started](getting-started.md) guide to begin using Agentic-AI.
+here it is: [Documentation site](./../site/index.html)
