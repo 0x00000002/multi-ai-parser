@@ -64,5 +64,16 @@
     },
     "created_at": "2025-03-31T11:21:06.684547",
     "updated_at": "2025-03-31T11:21:07.539123"
+  },
+  "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331": {
+    "template_id": "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331",
+    "name": "Question Template",
+    "description": "Template for asking questions about specific topics",
+    "template": "I need information about {{topic}}. Please answer: {{question}}",
+    "default_values": {
+      "topic": "general knowledge"
+    },
+    "created_at": "2025-04-01T05:08:17.182188",
+    "updated_at": "2025-04-01T05:08:18.480144"
   }
 }

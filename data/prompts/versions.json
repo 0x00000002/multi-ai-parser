@@ -202,5 +202,39 @@
       "created_at": "2025-03-31T11:21:07.539103",
       "is_active": true
     }
+  ],
+  "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331": [
+    {
+      "template_id": "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331",
+      "version_id": "474fa8cd-523c-4621-bee1-84546a16c943",
+      "version": 1,
+      "name": "Initial Version",
+      "description": "Initial version of the template",
+      "content": {
+        "template": "Answer this question about {{topic}}: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-04-01T05:08:17.182219",
+      "is_active": false
+    },
+    {
+      "template_id": "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331",
+      "version_id": "34a61deb-7c5f-4e5c-951f-12c5480369fd",
+      "version": 2,
+      "name": "Alternative Wording",
+      "description": "Different wording to test effectiveness",
+      "content": {
+        "template": "I need information about {{topic}}. Please answer: {{question}}",
+        "default_values": {
+          "topic": "general knowledge"
+        }
+      },
+      "created_by": "system",
+      "created_at": "2025-04-01T05:08:18.480123",
+      "is_active": true
+    }
   ]
 }

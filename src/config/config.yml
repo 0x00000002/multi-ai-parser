@@ -14,45 +14,65 @@ providers:
     timeout: 30
 
 models:
+  # External models
   claude-3-7-sonnet:
     name: "Claude 3.7 Sonnet"
     model_id: claude-3-7-sonnet-20250219
     provider: anthropic
     privacy: EXTERNAL
-    quality: HIGH
-    speed: FAST
-    max_tokens: 4096
+    quality: MAXIMUM
+    speed: STANDARD
+    parameters: 350000000000 # 350B
+    input_limit: 1000000
+    output_limit: 200000
     temperature: 0.7
     cost:
-      input_tokens: 0.000003  # $0.000003 per input token
-      output_tokens: 0.000015  # $0.000015 per output token
+      input_tokens: 3  # $3 per 1M input tokens
+      output_tokens: 15  # $15 per 1M output tokens
       minimum_cost: 0.0001  # Minimum cost per request
   claude-3-5-sonnet:
     name: "Claude 3.5 Sonnet"
-    model_id: claude-3-5-sonnet-latest
+    model_id: claude-3-5-sonnet-20241022
     provider: anthropic
     privacy: EXTERNAL
-    quality: MEDIUM
-    speed: FAST
-    max_tokens: 4096
+    quality: HIGH
+    speed: STANDARD
+    parameters: 175000000000
+    input_limit: 200000
+    output_limit: 8000
     temperature: 0.7
     cost:
-      input_tokens: 0.000003  # $0.000003 per input token
-      output_tokens: 0.000015  # $0.000015 per output token
+      input_tokens: 3  # $3 per 1M input tokens
+      output_tokens: 15  # $15 per 1M output tokens
       minimum_cost: 0.0001  # Minimum cost per request
   claude-3-5-haiku:
     name: "Claude 3.5 Haiku"
-    model_id: claude-3-5-haiku-latest
+    model_id: claude-3-5-haiku-20241022
+    provider: anthropic
+    privacy: EXTERNAL
+    quality: MEDIUM
+    speed: STANDARD
+    parameters: 50000000000 # 50B
+    input_limit: 200000
+    output_limit: 15000
+    temperature: 0.7
+    cost:
+      input_tokens: 0.8  # $0.8 per 1M input tokens
+      output_tokens: 4  # $4 per 1M output tokens
+  claude-3-haiku:
+    name: "Claude 3 Haiku"
+    model_id: claude-3-haiku
     provider: anthropic
     privacy: EXTERNAL
     quality: LOW
     speed: FAST
-    max_tokens: 4096
+    parameters: 30000000000 # 30B
+    input_limit: 200000
+    output_limit: 4096
     temperature: 0.7
     cost:
-      input_tokens: 0.000001  # $0.000001 per input token
-      output_tokens: 0.000005  # $0.000005 per output token
-      minimum_cost: 0.0001  # Minimum cost per request
+      input_tokens: 0.25  # $0.25 per 1M input tokens
+      output_tokens: 1.25  # $1.25 per 1M output tokens
   o3-mini:
     name: "ChatGPT O3 Mini"
     model_id: o3-mini-2025-01-31
@@ -60,12 +80,13 @@ models:
     privacy: EXTERNAL
     quality: HIGH
     speed: FAST
-    max_tokens: 4096
+    parameters: 115000000000 # 115B
+    input_limit: 32000
+    output_limit: 4096
     temperature: 0.7
     cost:
-      input_tokens: 0.00001  # $0.00001 per input token
-      output_tokens: 0.00003  # $0.00003 per output token
-      minimum_cost: 0.0001  # Minimum cost per request
+      input_tokens: 1.1  # $1.1 per 1M input tokens
+      output_tokens: 4.4  # $4.4 per 1M output tokens
   gpt-4o-mini:
     name: "ChatGPT 4o Mini"
     model_id: gpt-4o-mini
@@ -73,20 +94,97 @@ models:
     privacy: EXTERNAL
     quality: MEDIUM
     speed: FAST
-    max_tokens: 4096
+    parameters: 400000000000 # 400B
+    input_limit: 128000
+    output_limit: 4096
     temperature: 0.7
     cost:
-      input_tokens: 0.0000005  # $0.0000005 per input token
-      output_tokens: 0.0000015  # $0.0000015 per output token
-      minimum_cost: 0.0001  # Minimum cost per request
-  gemma3:
-    name: "Gemini Gemma 3"
+      input_tokens: 0.15  # $0.15 per 1M input tokens
+      output_tokens: 0.6  # $0.6 per 1M output tokens
+  gpt-4o:
+    name: "ChatGPT 4o"
+    model_id: gpt-4o
+    provider: openai
+    privacy: EXTERNAL
+    quality: HIGH
+    speed: STANDARD
+    parameters: 1800000000000 # 1800B
+    input_limit: 128000
+    output_limit: 4096
+    temperature: 0.7
+    cost:
+      input_tokens: 5  # $5 per 1M input tokens
+      output_tokens: 15  # $15 per 1M output tokens
+  gemini-2-5-pro:
+    name: "Gemini 2.5 Pro"
+    model_id: gemini-2.5-pro-exp-03-25
+    provider: gemini
+    privacy: EXTERNAL
+    quality: MAXIMUM
+    speed: STANDARD
+    parameters: 400000000000 # 400B
+    input_limit: 1000000
+    output_limit: 65000
+    temperature: 0.7
+    cost:
+      input_tokens: 10  # ? ESTIMATED $10 per 1M input tokens
+      output_tokens: 40  # ? ESTIMATED $40 per 1M output tokens
+  gemini-1-5-pro:
+    name: "Gemini 1.5 Pro"
+    model_id: gemini-1.5-pro
+    provider: gemini
+    privacy: EXTERNAL
+    quality: MEDIUM
+    speed: FAST
+    parameters: 20000000000
+    input_limit: 2000000
+    output_limit: 8000
+    temperature: 0.7
+    cost:
+      input_tokens: 1.25  # $1.25 per 1M input tokens
+      output_tokens: 5  # $5 per 1M output tokens      
+      
+  # Local models
+  phi4:
+    name: "Phi-4"
+    model_id: phi4:latest
+    provider: ollama
+    privacy: LOCAL
+    quality: MAXIMUM
+    speed: STANDARD
+    parameters: 14000000000 # 14B
+    input_limit: 16384
+    output_limit: 2048
+    temperature: 0.5
+    cost:
+      input_tokens: 0  # Local models have no token cost
+      output_tokens: 0
+      minimum_cost: 0      
+  gemma3-27b:
+    name: "Gemini Gemma 3 27B"
     model_id: gemma3:27b
+    provider: ollama
+    privacy: LOCAL
+    quality: MAXIMUM
+    speed: SLOW
+    parameters: 27000000000 # 27B
+    input_limit: 128000
+    output_limit: 2000
+    temperature: 0.7
+    cost:
+      input_tokens: 0  # Local models have no token cost
+      output_tokens: 0
+      minimum_cost: 0
+  gemma3-12b:
+    name: "Gemini Gemma 3 12B"
+    model_id: gemma3:12b
     provider: ollama
     privacy: LOCAL
     quality: MEDIUM
     speed: STANDARD
-    max_tokens: 2048
+    parameters: 12000000000 # 12B
+    input_limit: 128000
+    output_limit: 2000
     temperature: 0.7
     cost:
       input_tokens: 0  # Local models have no token cost
@@ -97,9 +195,11 @@ models:
     model_id: deepseek-r1:32b
     provider: ollama
     privacy: LOCAL
-    quality: MEDIUM
+    quality: HIGH
     speed: SLOW
-    max_tokens: 2048
+    parameters: 32000000000 # 32B
+    input_limit: 128000
+    output_limit: 2000
     temperature: 0.7
     cost:
       input_tokens: 0  # Local models have no token cost
@@ -110,9 +210,11 @@ models:
     model_id: qwq
     provider: ollama
     privacy: LOCAL
-    quality: LOW
-    speed: STANDARD
-    max_tokens: 2048
+    quality: MEDIUM
+    speed: SLOW
+    parameters: 32000000000 # 32B
+    input_limit: 32000
+    output_limit: 2048
     temperature: 0.7
     cost:
       input_tokens: 0  # Local models have no token cost
@@ -125,41 +227,18 @@ models:
     privacy: LOCAL
     quality: LOW
     speed: STANDARD
-    max_tokens: 2048
+    parameters: 7000000000 # 7B
+    input_limit: 128000
+    output_limit: 2048
     temperature: 0.7
     cost:
       input_tokens: 0  # Local models have no token cost
       output_tokens: 0
       minimum_cost: 0
-  gemini-2-5-pro:
-    name: "Gemini 2.5 Pro"
-    model_id: gemini-2.5-pro-exp-03-25
-    provider: gemini
-    privacy: EXTERNAL
-    quality: HIGH
-    speed: FAST
-    max_tokens: 2048
-    temperature: 0.7
-    cost:
-      input_tokens: 0.00000025  # $0.00025 per 1K characters
-      output_tokens: 0.00000025  # $0.00025 per 1K characters
-      minimum_cost: 0.0001  # Minimum cost per request
-  gemini-1-5-pro:
-    name: "Gemini 1.5 Pro"
-    model_id: gemini-1.5-pro
-    provider: gemini
-    privacy: EXTERNAL
-    quality: MEDIUM
-    speed: FAST
-    max_tokens: 2048
-    temperature: 0.7
-    cost:
-      input_tokens: 0.00000025  # $0.00025 per 1K characters
-      output_tokens: 0.00000025  # $0.00025 per 1K characters
-      minimum_cost: 0.0001  # Minimum cost per request
+
 
 # Default settings
-default_model: claude-3-7-sonnet
+default_model: phi4
 log_level: INFO
 
 # Use case specific configurations
@@ -169,7 +248,7 @@ use_cases:
     speed: STANDARD
   coding:
     quality: HIGH
-    speed: FAST
+    speed: STANDARD
   solidity_coding:
     quality: HIGH
     speed: STANDARD
@@ -184,7 +263,7 @@ use_cases:
     speed: SLOW
   web_analysis:
     quality: MEDIUM
-    speed: STANDARD
+    speed: SLOW
   image_generation:
     quality: HIGH
     speed: SLOW 

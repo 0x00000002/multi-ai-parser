@@ -34,6 +34,7 @@ class Quality(str, Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
+    MAXIMUM = "MAXIMUM"
 
 
 class Speed(str, Enum):
@@ -67,7 +68,6 @@ class CostConfig(BaseModel):
     """Configuration for model costs."""
     input_tokens: float
     output_tokens: float
-    minimum_cost: float
 
 
 class ModelConfig(BaseModel):
@@ -80,9 +80,11 @@ class ModelConfig(BaseModel):
     privacy: Privacy = Field(..., description="Privacy level (LOCAL/EXTERNAL)")
     quality: Quality = Field(..., description="Quality level (LOW/MEDIUM/HIGH)")
     speed: Speed = Field(..., description="Speed level (FAST/STANDARD/SLOW)")
-    max_tokens: int = Field(1024, description="Default maximum tokens for generation")
     temperature: float = Field(0.7, description="Default temperature setting")
-    cost: CostConfig = Field(..., description="Cost configuration for the model")
+    parameters: int = Field(..., description="Number of parameters in the model")
+    input_limit: int = Field(..., description="Input limit for the model")
+    output_limit: int = Field(..., description="Output limit for the model")
+    cost: CostConfig = Field(..., description="Cost configuration for the model, per 1M tokens")
     use_cases: List[str] = Field(default_factory=list, description="List of supported use cases")
 
 

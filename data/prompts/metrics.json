@@ -167,6 +167,34 @@
           ]
         }
       }
+    ],
+    "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331": [
+      {
+        "usage_id": "f3926ac2-c502-4a1f-9ce2-ba34182a84f9",
+        "template_id": "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331",
+        "version_id": "474fa8cd-523c-4621-bee1-84546a16c943",
+        "user_id": "example-user-1",
+        "timestamp": "2025-04-01T05:08:17.201851",
+        "context": {
+          "model": "claude-3-7-sonnet-20250219",
+          "tools": [
+            "lookup_info"
+          ]
+        }
+      },
+      {
+        "usage_id": "35c31a27-a31e-4506-8fa4-74e53eb2558c",
+        "template_id": "3b5c4f8d-daa7-41ea-bede-2d2cbf9c9331",
+        "version_id": "34a61deb-7c5f-4e5c-951f-12c5480369fd",
+        "user_id": "example-user-2",
+        "timestamp": "2025-04-01T05:08:18.483867",
+        "context": {
+          "model": "claude-3-7-sonnet-20250219",
+          "tools": [
+            "lookup_info"
+          ]
+        }
+      }
     ]
   },
   "performance_data": {
@@ -296,6 +324,28 @@
       "timestamp": "2025-03-31T11:21:09.840380",
       "metrics": {
         "latency": 2.299088954925537,
+        "model": "claude-3-7-sonnet-20250219",
+        "tools_enabled": false,
+        "tool_count": 1
+      },
+      "feedback": {}
+    },
+    "f3926ac2-c502-4a1f-9ce2-ba34182a84f9": {
+      "usage_id": "f3926ac2-c502-4a1f-9ce2-ba34182a84f9",
+      "timestamp": "2025-04-01T05:08:18.478574",
+      "metrics": {
+        "latency": 1.2768068313598633,
+        "model": "claude-3-7-sonnet-20250219",
+        "tools_enabled": false,
+        "tool_count": 1
+      },
+      "feedback": {}
+    },
+    "35c31a27-a31e-4506-8fa4-74e53eb2558c": {
+      "usage_id": "35c31a27-a31e-4506-8fa4-74e53eb2558c",
+      "timestamp": "2025-04-01T05:08:21.313539",
+      "metrics": {
+        "latency": 2.829756259918213,
         "model": "claude-3-7-sonnet-20250219",
         "tools_enabled": false,
         "tool_count": 1
