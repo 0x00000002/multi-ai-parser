@@ -4,7 +4,7 @@ A modular framework for building AI applications with tool integration capabilit
 
 ## HTML documentation
 
-[Documentation HTML website](./../site/index.html)
+[Documentation HTML website](./site/index.html)
 
 ## Overview
 

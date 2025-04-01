@@ -21,4 +21,4 @@ Agentic-AI is a Python library designed to create AI-powered applications that c
 
 ## HTML documentation
 
-here it is: [Documentation site](./../site/index.html)
+here it is: [Documentation site](./site/index.html)
