@@ -3,19 +3,19 @@ AI Framework package.
 
 Re-exports key components for easier access.
 Example:
-    from src import AI, ConfigManager, PromptManager
+    from src import AI, ConfigFactory, PromptManager
 """
 
 # Core components
-from .core import AI, AIBase, AsyncAI
-# from .core import ModelSelector # Removed - Causes ImportError
-from .core.interfaces import AIInterface, ProviderInterface, AsyncAIInterface, AsyncProviderInterface
+from .core import AI, AIBase
+from .core import ModelSelector # Uncommented - Now uses ConfigFactory
+from .core.model_selector import UseCase
+from .core.interfaces import AIInterface, ProviderInterface
 
 # Configuration
-from .config import ConfigManager
+from .config import UnifiedConfig
 # Assuming Model enum will be fixed in src/config/models.py
-# from .config.models import Model
-from .config.config_manager import Quality, Speed, Privacy
+from .config.dynamic_models import Model, Quality, Speed, Privacy
 
 # Conversation management
 from .conversation import ConversationManager, Message
@@ -27,8 +27,8 @@ from .prompts import PromptManager, PromptTemplate
 from .tools import ToolManager
 from .tools.models import ToolDefinition, ToolResult, ToolCall
 
-# Utilities
-from .utils import LoggerFactory, LoggerInterface
+# Utils
+from .utils import LoggerFactory
 
 # Exceptions
 from .exceptions import AIError, AIConfigError, AIProviderError, AIToolError, ConversationError
@@ -37,17 +37,14 @@ __all__ = [
     # Core
     "AI",
     "AIBase",
-    "AsyncAI",
-    # "ModelSelector", # Removed - Causes ImportError
+    "ModelSelector", # Uncommented - Now uses ConfigFactory
+    "UseCase",
     "AIInterface",
     "ProviderInterface",
-    "AsyncAIInterface",
-    "AsyncProviderInterface",
 
     # Config
-    "ConfigManager",
-    # "Model", # Uncomment when src/config/models.py is fixed
-    "UseCase",
+    "UnifiedConfig",
+    "Model", # Uncomment when src/config/models.py is fixed
     "Quality",
     "Speed",
     "Privacy",
@@ -68,7 +65,6 @@ __all__ = [
 
     # Utils
     "LoggerFactory",
-    "LoggerInterface",
 
     # Exceptions
     "AIError",

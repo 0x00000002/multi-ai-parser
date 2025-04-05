@@ -1,0 +1,402 @@
+{
+  "requests": {
+    "b13fd6f9-11f0-4593-9885-b70dd1bc9391": {
+      "request_id": "b13fd6f9-11f0-4593-9885-b70dd1bc9391",
+      "start_time": "2025-04-05T06:46:47.626198",
+      "end_time": null,
+      "duration_ms": null,
+      "prompt": "Create a simple ERC20 token contract with a fixed supply of 1,000,000 tokens.",
+      "prompt_tokens": 13,
+      "metadata": {
+        "user_id": null
+      },
+      "agents_used": [
+        "request_analyzer",
+        "orchestrator"
+      ],
+      "tools_used": [],
+      "models_used": [],
+      "success": null,
+      "error": null
+    },
+    "d91a067e-bc6b-4a47-b75a-7b25e2826cfa": {
+      "request_id": "d91a067e-bc6b-4a47-b75a-7b25e2826cfa",
+      "start_time": "2025-04-05T06:47:06.774744",
+      "end_time": "2025-04-05T06:47:08.896450",
+      "duration_ms": 2121,
+      "prompt": "How do I create a React component?",
+      "prompt_tokens": 7,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "request_analyzer",
+        "response_aggregator",
+        "orchestrator"
+      ],
+      "tools_used": [
+        "web_search",
+        "code_search"
+      ],
+      "models_used": [
+        "gpt-4"
+      ],
+      "success": true,
+      "error": null
+    },
+    "d632f1da-95de-4d57-b14e-01cabf3bfeb7": {
+      "request_id": "d632f1da-95de-4d57-b14e-01cabf3bfeb7",
+      "start_time": "2025-04-05T06:47:09.401203",
+      "end_time": "2025-04-05T06:47:11.436874",
+      "duration_ms": 2035,
+      "prompt": "Write a Python function to calculate Fibonacci numbers",
+      "prompt_tokens": 8,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "response_aggregator",
+        "orchestrator",
+        "request_analyzer"
+      ],
+      "tools_used": [
+        "code_writer"
+      ],
+      "models_used": [
+        "gpt-3.5-turbo"
+      ],
+      "success": false,
+      "error": null
+    },
+    "bcc74dc8-5985-41df-834f-cfee64e9eaf9": {
+      "request_id": "bcc74dc8-5985-41df-834f-cfee64e9eaf9",
+      "start_time": "2025-04-05T06:47:11.941109",
+      "end_time": "2025-04-05T06:47:13.549235",
+      "duration_ms": 1608,
+      "prompt": "Generate documentation for the RequestMetricsService class",
+      "prompt_tokens": 6,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "response_aggregator",
+        "orchestrator",
+        "request_analyzer"
+      ],
+      "tools_used": [
+        "code_writer",
+        "terminal"
+      ],
+      "models_used": [
+        "claude-3-sonnet"
+      ],
+      "success": true,
+      "error": null
+    },
+    "1e714624-14c5-49f0-90c6-337ca634b067": {
+      "request_id": "1e714624-14c5-49f0-90c6-337ca634b067",
+      "start_time": "2025-04-05T06:47:14.054961",
+      "end_time": "2025-04-05T06:47:14.751834",
+      "duration_ms": 696,
+      "prompt": "Write a Python function to calculate Fibonacci numbers",
+      "prompt_tokens": 8,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "orchestrator"
+      ],
+      "tools_used": [
+        "file_reader"
+      ],
+      "models_used": [
+        "claude-3-sonnet"
+      ],
+      "success": false,
+      "error": null
+    },
+    "7d838703-9d3c-4cad-a1ea-ef8e96a1e4ad": {
+      "request_id": "7d838703-9d3c-4cad-a1ea-ef8e96a1e4ad",
+      "start_time": "2025-04-05T06:47:15.258235",
+      "end_time": "2025-04-05T06:47:16.455897",
+      "duration_ms": 1197,
+      "prompt": "How do I create a React component?",
+      "prompt_tokens": 7,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "coding_assistant"
+      ],
+      "tools_used": [
+        "file_reader"
+      ],
+      "models_used": [
+        "claude-3-sonnet"
+      ],
+      "success": false,
+      "error": null
+    },
+    "b2b7ff5c-c97a-4e69-8763-a5a83bd664c6": {
+      "request_id": "b2b7ff5c-c97a-4e69-8763-a5a83bd664c6",
+      "start_time": "2025-04-05T06:47:16.959803",
+      "end_time": "2025-04-05T06:47:18.026647",
+      "duration_ms": 1066,
+      "prompt": "How do I create a React component?",
+      "prompt_tokens": 7,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "orchestrator",
+        "request_analyzer"
+      ],
+      "tools_used": [
+        "file_reader",
+        "terminal",
+        "code_writer"
+      ],
+      "models_used": [
+        "claude-3-sonnet"
+      ],
+      "success": false,
+      "error": null
+    },
+    "ec7bddbb-83ef-4261-8f7d-0979ffbbaa60": {
+      "request_id": "ec7bddbb-83ef-4261-8f7d-0979ffbbaa60",
+      "start_time": "2025-04-05T06:47:18.533210",
+      "end_time": "2025-04-05T06:47:19.615906",
+      "duration_ms": 1082,
+      "prompt": "Explain the metrics tracking system",
+      "prompt_tokens": 5,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "orchestrator",
+        "response_aggregator"
+      ],
+      "tools_used": [
+        "web_search"
+      ],
+      "models_used": [
+        "gpt-4"
+      ],
+      "success": true,
+      "error": null
+    },
+    "493c5e97-c675-4450-90e3-a0c9547dc267": {
+      "request_id": "493c5e97-c675-4450-90e3-a0c9547dc267",
+      "start_time": "2025-04-05T06:47:20.120294",
+      "end_time": "2025-04-05T06:47:21.734737",
+      "duration_ms": 1614,
+      "prompt": "Find all files in the project containing 'metrics'",
+      "prompt_tokens": 8,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "response_aggregator",
+        "coding_assistant"
+      ],
+      "tools_used": [
+        "terminal"
+      ],
+      "models_used": [
+        "gpt-3.5-turbo"
+      ],
+      "success": true,
+      "error": null
+    },
+    "54da4374-9f20-4f62-83f2-a8f3c92d9b53": {
+      "request_id": "54da4374-9f20-4f62-83f2-a8f3c92d9b53",
+      "start_time": "2025-04-05T06:47:22.239221",
+      "end_time": "2025-04-05T06:47:24.242101",
+      "duration_ms": 2002,
+      "prompt": "How do I create a React component?",
+      "prompt_tokens": 7,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "response_aggregator",
+        "coding_assistant",
+        "request_analyzer",
+        "orchestrator"
+      ],
+      "tools_used": [
+        "web_search",
+        "terminal",
+        "file_reader"
+      ],
+      "models_used": [
+        "gpt-3.5-turbo"
+      ],
+      "success": true,
+      "error": null
+    },
+    "178d777c-8789-40c0-8570-6a61c336ff00": {
+      "request_id": "178d777c-8789-40c0-8570-6a61c336ff00",
+      "start_time": "2025-04-05T06:47:24.747537",
+      "end_time": "2025-04-05T06:47:26.362262",
+      "duration_ms": 1614,
+      "prompt": "Write a Python function to calculate Fibonacci numbers",
+      "prompt_tokens": 8,
+      "metadata": {
+        "simulated": true
+      },
+      "agents_used": [
+        "response_aggregator",
+        "orchestrator",
+        "coding_assistant"
+      ],
+      "tools_used": [
+        "code_search",
+        "file_reader"
+      ],
+      "models_used": [
+        "gpt-3.5-turbo"
+      ],
+      "success": true,
+      "error": null
+    },
+    "b05d2846-4b55-4bfa-bbc4-152bfd872eb3": {
+      "request_id": "b05d2846-4b55-4bfa-bbc4-152bfd872eb3",
+      "start_time": "2025-04-05T09:26:53.847656",
+      "end_time": "2025-04-05T09:26:54.763794",
+      "duration_ms": 916,
+      "prompt": "hi",
+      "prompt_tokens": 1,
+      "metadata": {
+        "user_id": null
+      },
+      "agents_used": [
+        "request_analyzer",
+        "orchestrator"
+      ],
+      "tools_used": [],
+      "models_used": [],
+      "success": true,
+      "error": null
+    },
+    "38d9c9cf-714d-4b6b-8d4b-73ca32fb352b": {
+      "request_id": "38d9c9cf-714d-4b6b-8d4b-73ca32fb352b",
+      "start_time": "2025-04-05T09:27:10.875599",
+      "end_time": "2025-04-05T09:27:15.822828",
+      "duration_ms": 4947,
+      "prompt": "what tools you have at your disposal?\n",
+      "prompt_tokens": 7,
+      "metadata": {
+        "user_id": null
+      },
+      "agents_used": [
+        "request_analyzer",
+        "orchestrator"
+      ],
+      "tools_used": [],
+      "models_used": [],
+      "success": true,
+      "error": null
+    }
+  },
+  "agent_usage": {
+    "request_analyzer": {
+      "total_requests": 8,
+      "successful_requests": 7,
+      "total_duration_ms": 1558,
+      "avg_confidence": 0.9095585726246981,
+      "last_used": "2025-04-05T09:27:10.875699",
+      "avg_duration_ms": 259.6666666666667
+    },
+    "orchestrator": {
+      "total_requests": 11,
+      "successful_requests": 9,
+      "total_duration_ms": 1861,
+      "avg_confidence": 0.8878765027920879,
+      "last_used": "2025-04-05T09:27:10.876654",
+      "avg_duration_ms": 206.77777777777777
+    },
+    "response_aggregator": {
+      "total_requests": 7,
+      "successful_requests": 7,
+      "total_duration_ms": 1937,
+      "avg_confidence": 0.8109152441268979,
+      "last_used": "2025-04-05T06:47:25.592281",
+      "avg_duration_ms": 276.7142857142857
+    },
+    "coding_assistant": {
+      "total_requests": 4,
+      "successful_requests": 4,
+      "total_duration_ms": 1101,
+      "avg_confidence": 0.845767586739077,
+      "last_used": "2025-04-05T06:47:25.995687",
+      "avg_duration_ms": 275.25
+    }
+  },
+  "tool_usage": {
+    "web_search": {
+      "total_calls": 3,
+      "successful_calls": 3,
+      "total_duration_ms": 422,
+      "last_used": "2025-04-05T06:47:23.924200",
+      "avg_duration_ms": 140.66666666666666
+    },
+    "code_search": {
+      "total_calls": 2,
+      "successful_calls": 2,
+      "total_duration_ms": 287,
+      "last_used": "2025-04-05T06:47:26.183355",
+      "avg_duration_ms": 143.5
+    },
+    "code_writer": {
+      "total_calls": 3,
+      "successful_calls": 3,
+      "total_duration_ms": 361,
+      "last_used": "2025-04-05T06:47:18.024500",
+      "avg_duration_ms": 120.33333333333333
+    },
+    "terminal": {
+      "total_calls": 4,
+      "successful_calls": 4,
+      "total_duration_ms": 538,
+      "last_used": "2025-04-05T06:47:24.098726",
+      "avg_duration_ms": 134.5
+    },
+    "file_reader": {
+      "total_calls": 5,
+      "successful_calls": 4,
+      "total_duration_ms": 698,
+      "last_used": "2025-04-05T06:47:26.357549",
+      "avg_duration_ms": 139.6
+    }
+  },
+  "model_usage": {
+    "gpt-4": {
+      "total_calls": 2,
+      "successful_calls": 2,
+      "total_tokens_in": 493,
+      "total_tokens_out": 65,
+      "total_duration_ms": 1356,
+      "last_used": "2025-04-05T06:47:18.967647",
+      "avg_duration_ms": 678.0
+    },
+    "gpt-3.5-turbo": {
+      "total_calls": 4,
+      "successful_calls": 4,
+      "total_tokens_in": 1030,
+      "total_tokens_out": 453,
+      "total_duration_ms": 2808,
+      "last_used": "2025-04-05T06:47:25.311784",
+      "avg_duration_ms": 702.0
+    },
+    "claude-3-sonnet": {
+      "total_calls": 4,
+      "successful_calls": 4,
+      "total_tokens_in": 1339,
+      "total_tokens_out": 359,
+      "total_duration_ms": 1977,
+      "last_used": "2025-04-05T06:47:17.274316",
+      "avg_duration_ms": 494.25
+    }
+  }
+}

@@ -6,7 +6,11 @@ from .interfaces import ToolStrategy
 from ..utils.logger import LoggerInterface, LoggerFactory
 from ..exceptions import AIToolError
 from .models import ToolDefinition, ToolResult
-from ..config.config_manager import Provider  # Import Provider enum
+from ..config import get_config
+from ..config.provider import Provider
+import json
+import os
+from datetime import datetime
 
 
 class DefaultToolStrategy(ToolStrategy):
@@ -54,11 +58,35 @@ class ToolRegistry:
             logger: Logger instance
         """
         self._logger = logger or LoggerFactory.create()
+        self._config = get_config()
         self._tools: Dict[str, ToolStrategy] = {}
         self._tools_metadata: Dict[str, ToolDefinition] = {}
+        self._tool_categories: Dict[str, Set[str]] = {}  # Category name to set of tool names
+        self.usage_stats: Dict[str, Dict[str, Any]] = {}
         
-        # Register built-in tools
-        self._register_builtin_tools()
+        # Load tool categories from configuration
+        self._load_categories()
+        
+        # Register built-in tools if enabled
+        if self._is_builtin_enabled():
+            self._register_builtin_tools()
+    
+    def _load_categories(self) -> None:
+        """Load tool categories from configuration."""
+        tool_config = self._config.get_tool_config()
+        categories = tool_config.get("categories", {})
+        
+        for category_name, category_config in categories.items():
+            # Initialize empty set for each category
+            if category_config.get("enabled", True):
+                self._tool_categories[category_name] = set()
+                self._logger.debug(f"Loaded tool category: {category_name}")
+    
+    def _is_builtin_enabled(self) -> bool:
+        """Check if built-in tools are enabled in configuration."""
+        tool_config = self._config.get_tool_config()
+        builtin_config = tool_config.get("built_in", {})
+        return builtin_config.get("enabled", True)
     
     def _register_builtin_tools(self) -> None:
         """Register any built-in tools."""
@@ -67,19 +95,15 @@ class ToolRegistry:
     
     def register_tool(self, 
                      tool_name: str, 
-                     tool_function: Callable, 
-                     description: str, 
-                     parameters_schema: Dict[str, Any],
-                     tool_strategy: Optional[ToolStrategy] = None) -> None:
+                     tool_definition: ToolDefinition,
+                     category: Optional[str] = None) -> None:
         """
         Register a tool in the registry.
         
         Args:
             tool_name: Unique name for the tool
-            tool_function: The function implementing the tool
-            description: Description of what the tool does
-            parameters_schema: JSON schema for the tool parameters
-            tool_strategy: Optional custom tool strategy implementation
+            tool_definition: Tool definition object
+            category: Optional category to assign the tool to
             
         Raises:
             AIToolError: If registration fails (e.g., name already exists)
@@ -88,30 +112,70 @@ class ToolRegistry:
             raise AIToolError(f"Tool '{tool_name}' already registered")
         
         try:
-            # Create tool metadata
-            tool_definition = ToolDefinition(
-                name=tool_name,
-                description=description,
-                parameters_schema=parameters_schema,
-                function=tool_function
-            )
-            
-            # Create tool implementation
-            strategy = tool_strategy or DefaultToolStrategy(
-                function=tool_function,
-                description=description,
-                parameters_schema=parameters_schema
+            # Create tool implementation from the definition
+            strategy = DefaultToolStrategy(
+                function=tool_definition.function,
+                description=tool_definition.description,
+                parameters_schema=tool_definition.parameters_schema
             )
             
             # Store in registry
             self._tools[tool_name] = strategy
             self._tools_metadata[tool_name] = tool_definition
             
+            # Add to category if specified
+            if category:
+                if category not in self._tool_categories:
+                    # Create category if it doesn't exist
+                    self._tool_categories[category] = set()
+                
+                self._tool_categories[category].add(tool_name)
+                self._logger.debug(f"Tool {tool_name} added to category {category}")
+            
             self._logger.info(f"Tool registered: {tool_name}")
+            
+            # Initialize usage stats if not already present
+            if tool_name not in self.usage_stats:
+                self.usage_stats[tool_name] = {
+                    "uses": 0,
+                    "successes": 0,
+                    "last_used": None,
+                    "first_used": datetime.now().isoformat()
+                }
             
         except Exception as e:
             self._logger.error(f"Tool registration failed: {str(e)}")
             raise AIToolError(f"Failed to register tool {tool_name}: {str(e)}")
+    
+    def get_tool_names(self) -> List[str]:
+        """
+        Get names of all registered tools.
+        
+        Returns:
+            List of tool names
+        """
+        return list(self._tools.keys())
+    
+    def get_category_tools(self, category: str) -> List[str]:
+        """
+        Get all tool names in a specific category.
+        
+        Args:
+            category: Category name
+            
+        Returns:
+            List of tool names in the category
+        """
+        return list(self._tool_categories.get(category, set()))
+    
+    def get_categories(self) -> List[str]:
+        """
+        Get all available tool categories.
+        
+        Returns:
+            List of category names
+        """
+        return list(self._tool_categories.keys())
     
     def has_tool(self, tool_name: str) -> bool:
         """
@@ -125,17 +189,17 @@ class ToolRegistry:
         """
         return tool_name in self._tools
     
-    def get_tool(self, tool_name: str) -> Optional[ToolStrategy]:
+    def get_tool(self, tool_name: str) -> Optional[ToolDefinition]:
         """
-        Get a tool implementation by name.
+        Get a tool definition by name.
         
         Args:
             tool_name: Name of the tool to retrieve
             
         Returns:
-            Tool implementation or None if not found
+            Tool definition or None if not found
         """
-        return self._tools.get(tool_name)
+        return self._tools_metadata.get(tool_name)
     
     def get_tool_description(self, tool_name: str) -> Optional[str]:
         """
@@ -147,8 +211,8 @@ class ToolRegistry:
         Returns:
             Tool description or None if not found
         """
-        tool = self._tools.get(tool_name)
-        return tool.get_description() if tool else None
+        tool_def = self.get_tool(tool_name)
+        return tool_def.description if tool_def else None
     
     def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -160,8 +224,8 @@ class ToolRegistry:
         Returns:
             Tool parameters schema or None if not found
         """
-        tool = self._tools.get(tool_name)
-        return tool.get_schema() if tool else None
+        tool_def = self.get_tool(tool_name)
+        return tool_def.parameters_schema if tool_def else None
     
     def get_all_tools(self) -> Dict[str, ToolStrategy]:
         """
@@ -196,11 +260,6 @@ class ToolRegistry:
             Returns an empty list if the provider is unknown or formatting fails.
         """
         formatted_tools = []
-        provider = Provider.from_string(provider_name) # Use the enum helper
-
-        if not provider:
-            self._logger.warning(f"Unknown provider '{provider_name}' for tool formatting.")
-            return []
 
         # Filter tools if specific ones requested
         tools_to_format = {
@@ -217,26 +276,134 @@ class ToolRegistry:
                 }
 
                 # Provider-specific parameter schema structure
-                if provider in [Provider.OPENAI_GPT_4O, Provider.OPENAI_GPT_4O_MINI, Provider.OPENAI_GPT_4_TURBO]:
+                if "OPENAI" in provider_name:
                     base_tool_format["parameters"] = tool_def.parameters_schema
                     formatted_tools.append({"type": "function", "function": base_tool_format})
-                elif provider in [Provider.ANTHROPIC_CLAUDE_3_5_SONNET, Provider.ANTHROPIC_CLAUDE_3_OPUS, Provider.ANTHROPIC_CLAUDE_3_HAIKU]:
+                elif "ANTHROPIC" in provider_name:
                      # Anthropic uses 'input_schema'
                     base_tool_format["input_schema"] = tool_def.parameters_schema
                     formatted_tools.append(base_tool_format)
-                elif provider in [Provider.GOOGLE_GEMINI_1_5_PRO, Provider.GOOGLE_GEMINI_1_5_FLASH, Provider.GOOGLE_GEMINI_2_5_PRO]:
+                elif "GEMINI" in provider_name:
                      # Gemini uses 'parameters'
                     base_tool_format["parameters"] = tool_def.parameters_schema
                     # Wrap in 'function_declaration' for Gemini
                     formatted_tools.append({"function_declaration": base_tool_format})
                 else:
                     # Fallback for other providers or default
-                    self._logger.warning(f"Using default tool format for provider: {provider.name}")
-                    base_tool_format["parameters"] = tool_def.parameters_schema # Corrected attribute access
+                    self._logger.warning(f"Using default tool format for provider: {provider_name}")
+                    base_tool_format["parameters"] = tool_def.parameters_schema
                     formatted_tools.append(base_tool_format)
 
             except Exception as e:
                  self._logger.error(f"Failed to format tool '{tool_name}' for provider '{provider_name}': {e}")
                  # Optionally skip this tool or return [] depending on desired robustness
 
-        return formatted_tools 
+        return formatted_tools
+
+    def update_usage_stats(self, tool_name: str, success: bool, request_id: Optional[str] = None, duration_ms: Optional[int] = None) -> None:
+        """
+        Update usage statistics for a tool.
+        
+        Args:
+            tool_name: Name of the tool
+            success: Whether the tool execution was successful
+            request_id: Optional request ID for metrics tracking
+            duration_ms: Optional duration in milliseconds
+        """
+        if tool_name not in self.usage_stats:
+            self.usage_stats[tool_name] = {
+                "uses": 0,
+                "successes": 0,
+                "last_used": None,
+                "first_used": datetime.now().isoformat()
+            }
+            
+        self.usage_stats[tool_name]["uses"] += 1
+        if success:
+            self.usage_stats[tool_name]["successes"] += 1
+        self.usage_stats[tool_name]["last_used"] = datetime.now().isoformat()
+        
+        self._logger.debug(f"Updated usage stats for {tool_name}: uses={self.usage_stats[tool_name]['uses']}, successes={self.usage_stats[tool_name]['successes']}")
+        
+        # Track in metrics service if request_id is provided
+        if request_id:
+            try:
+                from ..metrics.request_metrics import RequestMetricsService
+                metrics_service = RequestMetricsService()
+                
+                # Track tool usage in metrics service
+                metrics_service.track_tool_usage(
+                    request_id=request_id,
+                    tool_id=tool_name,
+                    duration_ms=duration_ms,
+                    success=success
+                )
+            except Exception as e:
+                self._logger.warning(f"Failed to track tool usage in metrics service: {str(e)}")
+    
+    def get_usage_stats(self, tool_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get usage statistics for tools.
+        
+        Args:
+            tool_name: Optional name of a specific tool
+            
+        Returns:
+            Dictionary of usage statistics
+        """
+        if tool_name:
+            return self.usage_stats.get(tool_name, {})
+        return self.usage_stats
+    
+    def get_recommended_tools(self, prompt: str, max_tools: int = 5) -> List[str]:
+        """
+        Get recommended tools based on usage statistics.
+        
+        This is a simple implementation that returns the most frequently used tools.
+        In a real implementation, this could use AI or more sophisticated heuristics.
+        
+        Args:
+            prompt: User prompt to analyze
+            max_tools: Maximum number of tools to recommend
+            
+        Returns:
+            List of recommended tool names
+        """
+        # Sort tools by usage count
+        sorted_tools = sorted(
+            self.usage_stats.items(),
+            key=lambda x: x[1]["uses"],
+            reverse=True
+        )
+        
+        # Return the top N tools
+        return [tool_name for tool_name, _ in sorted_tools[:max_tools]]
+    
+    def save_stats(self, file_path: str) -> None:
+        """
+        Save usage statistics to a file.
+        
+        Args:
+            file_path: Path to save the statistics to
+        """
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(self.usage_stats, f, indent=2)
+            self._logger.info(f"Saved usage statistics to {file_path}")
+        except Exception as e:
+            self._logger.error(f"Failed to save usage statistics: {str(e)}")
+    
+    def load_stats(self, file_path: str) -> None:
+        """
+        Load usage statistics from a file.
+        
+        Args:
+            file_path: Path to load the statistics from
+        """
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    self.usage_stats = json.load(f)
+                self._logger.info(f"Loaded usage statistics from {file_path}")
+        except Exception as e:
+            self._logger.error(f"Failed to load usage statistics: {str(e)}") 

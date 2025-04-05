@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional, Union
 from ..interfaces import ProviderInterface
 from ...utils.logger import LoggerInterface, LoggerFactory
 from ...exceptions import AIProviderError
-from ...config.config_manager import ConfigManager
+from ...config import get_config
 
 
 class BaseProvider(ProviderInterface):
@@ -13,19 +13,84 @@ class BaseProvider(ProviderInterface):
     
     def __init__(self, 
                  model_id: str,
-                 config_manager: ConfigManager,
                  logger: Optional[LoggerInterface] = None):
         """
         Initialize the base provider.
         
         Args:
             model_id: The model identifier
-            config_manager: Configuration manager instance
             logger: Logger instance
         """
-        self._model_id = model_id
-        self._config_manager = config_manager
-        self._logger = logger
+        self.model_id = model_id
+        self.logger = logger or LoggerFactory.create(f"provider.{model_id}")
+        
+        # Get configuration
+        self.config = get_config()
+        
+        # Get model configuration
+        self.model_config = self.config.get_model_config(model_id)
+        if not self.model_config:
+            self.logger.warning(f"No configuration found for model {model_id}, using defaults")
+            self.model_config = {"model_id": model_id}
+            
+        # Get provider configuration
+        provider_type = self.model_config.get("provider", self.__class__.__name__.replace("Provider", "").lower())
+        self.provider_config = self.config.get_provider_config(provider_type)
+        
+        # Initialize credentials
+        self._initialize_credentials()
+        
+        self.logger.info(f"Initialized {self.__class__.__name__} for model {model_id}")
+    
+    def _initialize_credentials(self) -> None:
+        """Initialize credentials for the provider. Override in subclasses if needed."""
+        pass
+    
+    def _map_role(self, role: str) -> str:
+        """
+        Map a standard role to the provider-specific role name.
+        
+        Args:
+            role: Standard role name ("system", "user", "assistant", etc.)
+            
+        Returns:
+            Provider-specific role name
+        """
+        # By default, use the same role names
+        # Subclasses should override this if they use different role names
+        return role
+    
+    def _format_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        Format messages for the provider API.
+        
+        Args:
+            messages: List of message dictionaries
+            
+        Returns:
+            Formatted messages
+        """
+        # By default, just map the roles
+        formatted_messages = []
+        
+        for message in messages:
+            # Map the role
+            role = self._map_role(message.get("role", "user"))
+            
+            # Create formatted message
+            formatted_message = {
+                "role": role,
+                "content": message.get("content", "")
+            }
+            
+            # Add any additional fields from the original message
+            for key, value in message.items():
+                if key not in ["role", "content"]:
+                    formatted_message[key] = value
+            
+            formatted_messages.append(formatted_message)
+            
+        return formatted_messages
     
     def _convert_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

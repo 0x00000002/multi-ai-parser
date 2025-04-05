@@ -4,11 +4,12 @@ AI-powered tool finder that uses an LLM to select relevant tools.
 import json
 from typing import List, Optional, Set, Dict, Any
 from ..utils.logger import LoggerInterface
-from ..config.config_manager import ConfigManager
-from ..config.config_manager import ModelConfig  # Import ModelConfig
+from ..config import get_config
 from ..exceptions import AIToolError
 from .models import ToolDefinition
 from ..exceptions import AISetupError, AIProcessingError
+from ..utils.logger import LoggerFactory
+from .tool_registry import ToolRegistry
 
 
 class AIToolFinder:
@@ -36,28 +37,26 @@ Do not include any explanations, commentary, or text outside the JSON structure 
 
     def __init__(self,
                  model_id: str,
-                 config_manager: ConfigManager,
                  logger: LoggerInterface):
         """
         Initialize the AIToolFinder.
 
         Args:
             model_id: The ID of the AI model to use for tool finding.
-            config_manager: Configuration manager instance.
             logger: Logger instance.
         """
         self._logger = logger
-        self._config_manager = config_manager
+        self._config = get_config()
         self._model_id = model_id
         self._available_tools: Dict[str, ToolDefinition] = {}
 
         try:
             # Get model configuration
-            model_config = self._config_manager.get_model_config(self._model_id)
+            model_config = self._config.get_model_config(self._model_id)
             if not model_config:
                  raise AIToolError(f"Model configuration not found for ID: {self._model_id}")
 
-            self._provider_name = model_config.provider # Store provider name
+            self._provider_name = model_config.get("provider") # Store provider name
             
             # Move the import inside the method to avoid circular imports
             from ..core.provider_factory import ProviderFactory
@@ -65,7 +64,6 @@ Do not include any explanations, commentary, or text outside the JSON structure 
             # Initialize the AI provider for tool finding
             self._finder_ai = ProviderFactory.create(
                 model_id=self._model_id,
-                config_manager=self._config_manager,
                 logger=self._logger
             )
             self._logger.info(f"AIToolFinder initialized with model: {self._model_id}")

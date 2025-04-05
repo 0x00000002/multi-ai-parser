@@ -1,7 +1,7 @@
 """
 Core interfaces for AI and provider implementations.
 """
-from typing import Protocol, List, Dict, Any, Optional, Union, AsyncIterator
+from typing import Protocol, List, Dict, Any, Optional, Union, Tuple, BinaryIO
 from typing_extensions import runtime_checkable
 
 
@@ -50,41 +50,6 @@ class AIInterface(Protocol):
 
 
 @runtime_checkable
-class AsyncAIInterface(Protocol):
-    """Interface for asynchronous AI interactions."""
-    
-    async def async_request(self, prompt: str, **options) -> str:
-        """
-        Make an asynchronous request to the AI model.
-        
-        Args:
-            prompt: The user prompt
-            options: Additional options for the request
-            
-        Returns:
-            The model's response as a string
-        """
-        ...
-    
-    async def async_stream(self, prompt: str, **options) -> AsyncIterator[str]:
-        """
-        Stream a response asynchronously from the AI model.
-        
-        Args:
-            prompt: The user prompt
-            options: Additional options for the request
-            
-        Returns:
-            An async iterator yielding response chunks
-        """
-        ...
-    
-    async def async_reset_conversation(self) -> None:
-        """Reset the conversation history asynchronously."""
-        ...
-
-
-@runtime_checkable
 class ProviderInterface(Protocol):
     """Interface for AI providers."""
     
@@ -117,37 +82,6 @@ class ProviderInterface(Protocol):
 
 
 @runtime_checkable
-class AsyncProviderInterface(Protocol):
-    """Interface for asynchronous AI providers."""
-    
-    async def async_request(self, messages: List[Dict[str, Any]], **options) -> Dict[str, Any]:
-        """
-        Make an asynchronous request to the provider.
-        
-        Args:
-            messages: List of conversation messages
-            options: Additional options for the request
-            
-        Returns:
-            Provider response object
-        """
-        ...
-    
-    async def async_stream(self, messages: List[Dict[str, Any]], **options) -> AsyncIterator[str]:
-        """
-        Stream a response asynchronously from the provider.
-        
-        Args:
-            messages: List of conversation messages
-            options: Additional options for the request
-            
-        Returns:
-            An async iterator yielding response chunks
-        """
-        ...
-
-
-@runtime_checkable
 class ToolCapableProviderInterface(ProviderInterface, Protocol):
     """Interface for providers that support tools/functions."""
     
@@ -168,20 +102,50 @@ class ToolCapableProviderInterface(ProviderInterface, Protocol):
 
 
 @runtime_checkable
-class AsyncToolCapableProviderInterface(AsyncProviderInterface, Protocol):
-    """Interface for async providers that support tools/functions."""
+class MultimediaProviderInterface(Protocol):
+    """Interface for providers that support multimedia processing capabilities."""
     
-    async def async_add_tool_message(self, messages: List[Dict[str, Any]], 
-                              name: str, content: str) -> List[Dict[str, Any]]:
+    def transcribe_audio(self, 
+                         audio_file: Union[str, BinaryIO], 
+                         **options) -> Tuple[str, Dict[str, Any]]:
         """
-        Add a tool message to the conversation history asynchronously.
+        Transcribe audio to text.
         
         Args:
-            messages: The current conversation history
-            name: The name of the tool
-            content: The content/result of the tool call
+            audio_file: Path to audio file or file-like object
+            options: Additional options (language, format, etc.)
             
         Returns:
-            Updated conversation history
+            Tuple of (transcribed_text, metadata)
+        """
+        ...
+    
+    def text_to_speech(self, 
+                      text: str, 
+                      **options) -> Union[bytes, str]:
+        """
+        Convert text to speech.
+        
+        Args:
+            text: Text to convert to speech
+            options: Additional options (voice, format, etc.)
+            
+        Returns:
+            Audio data as bytes or path to saved audio file
+        """
+        ...
+    
+    def analyze_image(self, 
+                     image_file: Union[str, BinaryIO], 
+                     **options) -> Dict[str, Any]:
+        """
+        Analyze image content.
+        
+        Args:
+            image_file: Path to image file or file-like object
+            options: Additional options
+            
+        Returns:
+            Analysis results as dictionary
         """
         ... 

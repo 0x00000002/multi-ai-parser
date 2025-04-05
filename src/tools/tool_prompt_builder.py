@@ -1,34 +1,85 @@
 """
-Tool prompt builder for enhancing prompts with tool information.
+Tool Prompt Builder.
+Enhances prompts with tool information.
 """
-from typing import List, Set, Tuple
-from .interfaces import ToolStrategy
+from typing import List, Dict, Any, Optional
+from ..prompts.prompt_template import PromptTemplate
+from ..utils.logger import LoggerInterface, LoggerFactory
 
 
 class ToolPromptBuilder:
-    """Builder for enhancing prompts with tool information."""
+    """
+    Enhances prompts with information about available tools.
+    """
     
-    @staticmethod
-    def build_enhanced_prompt(prompt: str, tools_with_names: List[Tuple[str, ToolStrategy]]) -> str:
+    def __init__(self, logger: Optional[LoggerInterface] = None, prompt_template: Optional[PromptTemplate] = None):
         """
-        Build an enhanced prompt with tool information.
+        Initialize the tool prompt builder.
+        
+        Args:
+            logger: Logger instance
+            prompt_template: PromptTemplate service for generating prompts
+        """
+        self._logger = logger or LoggerFactory.create(name="tool_prompt_builder")
+        self._prompt_template = prompt_template or PromptTemplate(logger=self._logger)
+    
+    def enhance_prompt_with_tools(self, prompt: str, tool_descriptions: List[str]) -> str:
+        """
+        Enhance a prompt with information about available tools.
         
         Args:
             prompt: The original prompt
-            tools_with_names: List of tuples, each containing (tool_name, tool_strategy)
+            tool_descriptions: List of tool descriptions
             
         Returns:
             Enhanced prompt with tool information
         """
-        if not tools_with_names:
+        if not tool_descriptions:
             return prompt
             
-        tool_descriptions = []
-        for tool_name, tool in tools_with_names:
-            description = tool.get_description()
-            schema = tool.get_schema()
-            tool_descriptions.append(f"- {tool_name}: {description}")
-            tool_descriptions.append(f"  Parameters: {schema}")
+        try:
+            # Prepare template variables
+            variables = {
+                "prompt": prompt,
+                "tool_descriptions": "\n".join(tool_descriptions)
+            }
+            
+            # Use template to generate enhanced prompt
+            try:
+                enhanced_prompt, usage_id = self._prompt_template.render_prompt(
+                    template_id="tool_enhancement",
+                    variables=variables
+                )
+                
+                # Record metrics
+                self._prompt_template.record_prompt_performance(
+                    usage_id=usage_id,
+                    metrics={
+                        "num_tools": len(tool_descriptions),
+                        "original_prompt_length": len(prompt),
+                        "enhanced_prompt_length": len(enhanced_prompt)
+                    }
+                )
+                
+                return enhanced_prompt
+                
+            except ValueError:
+                # Fallback if template not found
+                self._logger.warning("Template 'tool_enhancement' not found, using fallback")
+                return self._fallback_enhance_prompt(prompt, tool_descriptions)
+        except Exception as e:
+            self._logger.error(f"Error enhancing prompt: {str(e)}")
+            return self._fallback_enhance_prompt(prompt, tool_descriptions)
+    
+    def _fallback_enhance_prompt(self, prompt: str, tool_descriptions: List[str]) -> str:
+        """
+        Fallback method to enhance a prompt without using templates.
         
-        enhanced_prompt = f"{prompt}\n\nAvailable tools:\n" + "\n".join(tool_descriptions)
-        return enhanced_prompt 
+        Args:
+            prompt: The original prompt
+            tool_descriptions: List of tool descriptions
+            
+        Returns:
+            Enhanced prompt with tool information
+        """
+        return f"{prompt}\n\nAvailable tools:\n" + "\n".join(tool_descriptions) 

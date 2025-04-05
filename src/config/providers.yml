@@ -1,0 +1,13 @@
+providers:
+  anthropic:
+    api_key_env: ANTHROPIC_API_KEY
+    timeout: 30
+  openai:
+    api_key_env: OPENAI_API_KEY
+    timeout: 30
+  ollama:
+    api_key_env: OLLAMA_API_KEY
+    timeout: 30
+  gemini:
+    api_key_env: GOOGLE_API_KEY
+    timeout: 30 

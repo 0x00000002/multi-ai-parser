@@ -6,18 +6,16 @@ from .interfaces import (
     AIInterface,
     ProviderInterface,
     ToolCapableProviderInterface,
-    AsyncAIInterface,
-    AsyncProviderInterface,
-    AsyncToolCapableProviderInterface
+    MultimediaProviderInterface
 )
 from ..utils.logger import LoggerInterface
 from .base_ai import AIBase
-from .async_ai import AsyncAI
 from .tool_enabled_ai import AI
 from .providers.base_provider import BaseProvider
 from .providers.openai_provider import OpenAIProvider
 from .providers.ollama_provider import OllamaProvider
 from .providers.gemini_provider import GeminiProvider
+from .model_selector import ModelSelector
 
 __all__ = [
     # Interfaces
@@ -25,15 +23,13 @@ __all__ = [
     'ProviderInterface',
     'LoggerInterface',
     'ToolCapableProviderInterface',
-    'AsyncAIInterface',
-    'AsyncProviderInterface',
-    'AsyncToolCapableProviderInterface',
+    'MultimediaProviderInterface',
     
     # Base Classes
     'AIBase',
-    'AsyncAI',
     'AI',
     'BaseProvider',
+    'ModelSelector',
     
     # Providers
     'OpenAIProvider',

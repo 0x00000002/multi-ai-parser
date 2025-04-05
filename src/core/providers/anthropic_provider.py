@@ -1,157 +1,354 @@
 """
 Anthropic provider implementation.
 """
-from typing import List, Dict, Any, Optional, Union
-from ..interfaces import ProviderInterface
+from typing import List, Dict, Any, Optional, Union, Tuple
+from ..interfaces import ProviderInterface, ToolCapableProviderInterface
 from ...utils.logger import LoggerInterface, LoggerFactory
-from ...config.config_manager import ConfigManager
+from ...config import get_config
 from ...exceptions import AIRequestError, AICredentialsError, AIProviderError
-from ...tools.models import ToolCall
+from ...tools.tool_call import ToolCall
 from .base_provider import BaseProvider
-import anthropic
+import json
+import os
+
+try:
+    import anthropic
+    from anthropic import Anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
 
 
-class AnthropicProvider(BaseProvider):
-    """Provider implementation for Anthropic's Claude AI."""
+class AnthropicProvider(BaseProvider, ToolCapableProviderInterface):
+    """Provider implementation for Anthropic Claude models with tools support."""
+    
+    # Add property for tool support
+    supports_tools = True
     
     # Role mapping for Anthropic API
     _ROLE_MAP = {
-        "system": "assistant",
+        "system": "system",
         "user": "user",
         "assistant": "assistant",
-        "tool": "assistant"
+        "tool": "assistant"  # Anthropic has no tool role
     }
     
     def __init__(self, 
                  model_id: str,
-                 config_manager: ConfigManager,
                  logger: Optional[LoggerInterface] = None):
         """
         Initialize the Anthropic provider.
         
         Args:
             model_id: The model identifier
-            config_manager: Configuration manager instance
             logger: Logger instance
         """
-        super().__init__(model_id, config_manager, logger)
+        if not ANTHROPIC_AVAILABLE:
+            raise AIProviderError("Anthropic Python SDK not installed. Run 'pip install anthropic'")
+            
+        super().__init__(model_id, logger)
         
-        # Get provider configuration
-        provider_config = self._config_manager.get_provider_config("anthropic")
-        api_key = provider_config.api_key
+        # Initialize model parameters
+        model_config = self.model_config or {}
+        self.parameters = {
+            "max_tokens": model_config.get("output_limit", 4096),
+            "temperature": model_config.get("temperature", 0.7)
+        }
         
-        if not api_key or not (api_key.startswith("sk-ant-api") or api_key.startswith("sk-ant-api03")):
-            raise AICredentialsError("No valid Anthropic API key found")
+        # Store the full model ID from configuration
+        self.full_model_id = model_config.get("model_id", model_id)
         
+        self.logger.info(f"Initialized Anthropic provider with model {model_id} (full model ID: {self.full_model_id})")
+        self.logger.info(f"Model parameters: {self.parameters}")
+    
+    def _initialize_credentials(self) -> None:
+        """Initialize Anthropic API credentials."""
         try:
-            self._client = anthropic.Anthropic(api_key=api_key)
-            self._logger.info(f"Successfully initialized Anthropic client for {model_id}")
+            # Get API key from configuration
+            api_key = self.provider_config.get("api_key")
+            if not api_key:
+                api_key = self.config.get_api_key("anthropic")
+                
+            if not api_key:
+                # Try getting from environment directly
+                api_key = os.environ.get("ANTHROPIC_API_KEY")
+                
+            if not api_key:
+                self.logger.error("No Anthropic API key found in configuration or environment")
+                raise AICredentialsError("No Anthropic API key found")
+                
+            self.logger.info("Found Anthropic API key")
+                
+            # Set up Anthropic client
+            try:
+                self.client = Anthropic(api_key=api_key)
+                self.logger.info("Successfully initialized Anthropic client")
+            except Exception as e:
+                self.logger.error(f"Failed to create Anthropic client: {str(e)}")
+                raise AICredentialsError(f"Failed to create Anthropic client: {str(e)}")
+            
         except Exception as e:
-            raise AICredentialsError(f"Failed to initialize Anthropic client: {str(e)}")
+            self.logger.error(f"Failed to initialize Anthropic credentials: {str(e)}")
+            raise AICredentialsError(f"Failed to initialize Anthropic credentials: {str(e)}")
     
-    def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _map_role(self, role: str) -> str:
+        """Map standard role to Anthropic role."""
+        return self._ROLE_MAP.get(role, "user")
+    
+    def _format_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """Format messages for Anthropic API."""
-        return [{
-            "role": self._ROLE_MAP[msg["role"]],
-            "content": f"Tool {msg.get('name', 'unknown')}: {msg['content']}" if msg["role"] == "tool" else msg["content"]
-        } for msg in messages]
+        formatted_messages = []
+        
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            
+            # Map role to Anthropic format
+            anthropic_role = self._map_role(role)
+            
+            # Handle special roles
+            if role == "system":
+                # For Claude, system message is handled separately
+                continue
+                
+            # Create formatted message
+            formatted_message = {
+                "role": anthropic_role,
+                "content": content
+            }
+            
+            formatted_messages.append(formatted_message)
+            
+        return formatted_messages
     
-    def request(self, messages: Union[str, List[Dict[str, Any]]], **options) -> Union[str, Dict[str, Any]]:
+    def _extract_system_message(self, messages: List[Dict[str, str]]) -> Optional[str]:
+        """Extract system message from messages list."""
+        for message in messages:
+            if message.get("role") == "system":
+                return message.get("content", "")
+        return None
+    
+    def request(self, messages: List[Dict[str, str]], **options) -> Union[str, Dict[str, Any]]:
         """
         Make a request to the Anthropic API.
         
         Args:
-            messages: User message string or list of conversation messages
-            options: Additional request options
+            messages: List of message dictionaries
+            **options: Additional options
             
         Returns:
-            Either a string response (when no tools are needed) or 
-            a dictionary with 'content' and possibly 'tool_calls' for further processing
+            Response content as a string, or a dictionary with content and tool calls
         """
         try:
-            # Handle string input by converting to messages format
-            if isinstance(messages, str):
-                formatted_messages = [{"role": "user", "content": messages}]
-            else:
-                # Format messages for Anthropic API
-                formatted_messages = self._format_messages(messages)
+            # Format messages for Anthropic API
+            formatted_messages = self._format_messages(messages)
             
-            # Use max_tokens from options or default to 1000
-            max_tokens = options.get('max_tokens', 1000)
+            # Extract system message
+            system = self._extract_system_message(messages)
             
-            # Make the request
-            response = self._client.messages.create(
-                model=self._model_id,
+            # Merge model parameters with options
+            params = self.parameters.copy()
+            params.update(options)
+            
+            # Remove any non-Anthropic parameters
+            for key in list(params.keys()):
+                if key not in ["temperature", "max_tokens", "top_p", "top_k", 
+                              "stop_sequences", "tools", "tool_choice"]:
+                    del params[key]
+            
+            # Extract tools if provided
+            tools = params.pop("tools", None)
+            
+            # Make the API call
+            if tools:
+                return self._request_with_tools(messages[-1].get("content", ""), tools, 
+                                               conversation=[(m.get("role"), m.get("content")) 
+                                                             for m in messages[:-1] if m.get("role") != "system"],
+                                               system_prompt=system)
+            
+            # Standard request
+            response = self.client.messages.create(
+                model=self.full_model_id,  # Use the full model ID from configuration
                 messages=formatted_messages,
-                max_tokens=max_tokens,
-                **{k: v for k, v in options.items() if v is not None and k != 'max_tokens'}
+                system=system,
+                max_tokens=params.get("max_tokens", 4096),
+                temperature=params.get("temperature", 0.7)
             )
             
-            # Convert response to standardized format
-            tool_calls = []
-            content = response.content[0]
-            if hasattr(content, 'tool_calls') and content.tool_calls:
-                tool_calls = [ToolCall(name=t.name, arguments=t.arguments) for t in content.tool_calls]
+            return response.content[0].text
             
-            # Create response object
-            result = {
-                "content": content.text,
-                "tool_calls": tool_calls,
-                "finish_reason": response.stop_reason
+        except anthropic.APIError as e:
+            raise AIRequestError(f"Anthropic API error: {str(e)}")
+        except Exception as e:
+            raise AIProviderError(f"Error making Anthropic request: {str(e)}")
+    
+    def request_with_tools(self, 
+                          prompt: str, 
+                          tools: List[Dict[str, Any]],
+                          conversation: Optional[List[Tuple[str, str]]] = None,
+                          system_prompt: Optional[str] = None,
+                          structured_tools: bool = True) -> Dict[str, Any]:
+        """
+        Make a request that can use tools.
+        
+        Args:
+            prompt: User prompt
+            tools: List of tool definitions
+            conversation: Optional conversation history as (role, content) tuples
+            system_prompt: Optional system prompt
+            structured_tools: Whether to use structured tools format
+            
+        Returns:
+            Dictionary with content and tool calls
+        """
+        try:
+            # Build messages for Anthropic
+            anthropic_messages = []
+            
+            # Add conversation history
+            if conversation:
+                for role, content in conversation:
+                    if role != "system":
+                        anthropic_messages.append({
+                            "role": self._map_role(role),
+                            "content": content
+                        })
+            
+            # Add current prompt
+            anthropic_messages.append({
+                "role": "user",
+                "content": prompt
+            })
+            
+            # Format tools for Anthropic API
+            anthropic_tools = []
+            for tool in tools:
+                # Ensure required fields are present
+                if not all(key in tool for key in ["name", "description", "parameters"]):
+                    self.logger.warning(f"Skipping tool {tool.get('name', 'unknown')} due to missing required fields")
+                    continue
+                    
+                anthropic_tool = {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "input_schema": tool["parameters"]
+                }
+                anthropic_tools.append(anthropic_tool)
+            
+            if not anthropic_tools:
+                self.logger.warning("No valid tools provided for the request")
+                return {"content": "I cannot use tools at the moment.", "tool_calls": []}
+            
+            # Make API call with tool configuration
+            response = self.client.messages.create(
+                model=self.full_model_id,  # Use the full model ID from configuration
+                messages=anthropic_messages,
+                system=system_prompt,
+                tools=anthropic_tools,
+                tool_choice="auto",
+                max_tokens=self.parameters.get("max_tokens", 4096),
+                temperature=self.parameters.get("temperature", 0.7)
+            )
+            
+            # Extract content
+            content = response.content[0].text if response.content else ""
+            
+            # Extract tool calls
+            tool_calls = []
+            for block in response.content:
+                if block.type == "tool_use":
+                    try:
+                        tool_calls.append(
+                            ToolCall(
+                                name=block.name,
+                                arguments=json.dumps(block.input),
+                                id=block.id
+                            )
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Error processing tool call: {str(e)}")
+                        continue
+            
+            return {
+                "content": content,
+                "tool_calls": tool_calls
             }
             
-            # If there are no tool calls, just return the content as a string
-            if not tool_calls:
-                return self.standardize_response(content.text)
-            
-            # Otherwise return the full response object for tool handling
-            return result
-            
+        except anthropic.APIError as e:
+            self.logger.error(f"Anthropic API error in tool request: {str(e)}")
+            raise AIRequestError(f"Anthropic API error in tool request: {str(e)}")
         except Exception as e:
-            self._logger.error(f"Anthropic request failed: {str(e)}")
-            raise AIRequestError(
-                f"Failed to make Anthropic request: {str(e)}",
-                provider="anthropic",
-                original_error=e
-            )
+            self.logger.error(f"Error making Anthropic tools request: {str(e)}")
+            raise AIProviderError(f"Error making Anthropic tools request: {str(e)}")
     
-    def stream(self, messages: Union[str, List[Dict[str, Any]]], **options) -> str:
+    def stream(self, messages: List[Dict[str, str]], **options) -> str:
         """
         Stream a response from the Anthropic API.
         
         Args:
-            messages: User message string or list of conversation messages
-            options: Additional request options
+            messages: List of message dictionaries
+            **options: Additional options
             
         Returns:
-            Streamed response as a string
+            Aggregated response as a string
         """
         try:
-            # Handle string input by converting to messages format
-            if isinstance(messages, str):
-                formatted_messages = [{"role": "user", "content": messages}]
-            else:
-                # Format messages for Anthropic API
-                formatted_messages = self._format_messages(messages)
+            # Format messages for Anthropic API
+            formatted_messages = self._format_messages(messages)
             
-            # Use max_tokens from options or default to 1000
-            max_tokens = options.get('max_tokens', 1000)
+            # Extract system message
+            system = self._extract_system_message(messages)
             
-            # Stream the response
-            response = self._client.messages.create(
-                model=self._model_id,
+            # Merge model parameters with options
+            params = self.parameters.copy()
+            params.update(options)
+            
+            # Remove any non-Anthropic parameters
+            for key in list(params.keys()):
+                if key not in ["temperature", "max_tokens", "top_p", "top_k", 
+                              "stop_sequences", "tools", "tool_choice"]:
+                    del params[key]
+            
+            # Make the streaming API call
+            response = self.client.messages.create(
+                model=self.model_id,
                 messages=formatted_messages,
-                max_tokens=max_tokens,
+                system=system,
                 stream=True,
-                **{k: v for k, v in options.items() if v is not None and k != 'max_tokens'}
+                **params
             )
             
-            return "".join(chunk.content[0].text for chunk in response if chunk.content)
+            # Collect the chunks
+            chunks = []
             
+            for chunk in response:
+                if chunk.type == "content_block_delta" and chunk.delta.text:
+                    chunks.append(chunk.delta.text)
+                    
+            # Join all chunks
+            return "".join(chunks)
+            
+        except anthropic.APIError as e:
+            raise AIRequestError(f"Anthropic API error in streaming: {str(e)}")
         except Exception as e:
-            self._logger.error(f"Anthropic streaming failed: {str(e)}")
-            raise AIRequestError(
-                f"Failed to stream Anthropic response: {str(e)}",
-                provider="anthropic",
-                original_error=e
-            ) 
+            raise AIProviderError(f"Error streaming from Anthropic: {str(e)}")
+    
+    def add_tool_message(self, messages: List[Dict[str, Any]], 
+                         name: str, content: str) -> List[Dict[str, Any]]:
+        """
+        Add a tool message to the conversation history.
+        
+        Args:
+            messages: The current conversation history
+            name: The name of the tool
+            content: The content/result of the tool call
+            
+        Returns:
+            Updated conversation history
+        """
+        messages.append({
+            "role": "tool",
+            "name": name,
+            "content": str(content)
+        })
+        return messages 

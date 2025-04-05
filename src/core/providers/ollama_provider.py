@@ -1,13 +1,16 @@
 """
 Ollama provider implementation.
 """
-from typing import List, Dict, Any, Optional, Union
-import json
-import requests
+from typing import List, Dict, Any, Optional, Union, BinaryIO
+try:
+    import ollama
+except ImportError:
+    ollama = None
+
 from ..interfaces import ProviderInterface
 from ...utils.logger import LoggerInterface, LoggerFactory
-from ...config.config_manager import ConfigManager
-from ...exceptions import AIRequestError, AICredentialsError, AIProviderError
+from ...config import get_config
+from ...exceptions import AIRequestError, AICredentialsError, AIProviderError, AISetupError
 from .base_provider import BaseProvider
 
 
@@ -16,27 +19,29 @@ class OllamaProvider(BaseProvider):
     
     def __init__(self, 
                  model_id: str,
-                 config_manager: ConfigManager,
                  logger: Optional[LoggerInterface] = None):
         """
         Initialize the Ollama provider.
         
         Args:
             model_id: The model identifier
-            config_manager: Configuration manager instance
             logger: Logger instance
         """
-        super().__init__(model_id, config_manager, logger)
+        super().__init__(model_id, logger)
         
+        # Check if ollama is installed
+        if ollama is None:
+            raise AISetupError(
+                "Ollama SDK not installed. Please install with 'pip install ollama'.",
+                component="ollama"
+            )
+            
         # Get provider configuration
-        provider_config = self._config_manager.get_provider_config("ollama")
-        self._base_url = provider_config.base_url or "http://localhost:11434"
+        self.provider_config = self.config.get_provider_config("ollama") or {}
         
-        # Initialize session
-        self._session = requests.Session()
-        self._logger.info(f"Initialized Ollama provider with base URL: {self._base_url}")
+        self.logger.info(f"Initialized Ollama provider for model: {self.model_id}")
     
-    def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _format_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """Format messages for Ollama API."""
         formatted = []
         for msg in messages:
@@ -54,133 +59,79 @@ class OllamaProvider(BaseProvider):
         
         return formatted
     
-    def request(self, messages: Union[str, List[Dict[str, Any]]], **options) -> Union[str, Dict[str, Any]]:
+    def request(self, messages: List[Dict[str, str]], **options) -> Union[str, Dict[str, Any]]:
         """
         Make a request to the Ollama API.
         
         Args:
-            messages: User message string or list of conversation messages
-            options: Additional request options
+            messages: List of message dictionaries
+            **options: Additional options
             
         Returns:
-            Either a string response (when no tools are needed) or 
-            a dictionary with 'content' and possibly 'tool_calls' for further processing
+            Response content as a string
         """
         try:
-            # Handle string input by converting to messages format
-            if isinstance(messages, str):
-                prompt = messages
-                formatted_messages = None
-            else:
-                # Format messages for Ollama API
-                formatted_messages = self._format_messages(messages)
-                # For single user message, use simple prompt
-                if len(formatted_messages) == 1 and formatted_messages[0]["role"] == "user":
-                    prompt = formatted_messages[0]["content"]
-                    formatted_messages = None
-                else:
-                    prompt = None
+            # Format messages for Ollama
+            formatted_messages = self._format_messages(messages)
             
-            # Prepare request data
-            api_url = f"{self._base_url}/api/chat"
-            request_data = {
-                "model": self._model_id,
-                "stream": False,
-                **{k: v for k, v in options.items() if v is not None}
-            }
+            # Merge model parameters with options
+            params = {}
+            for key, value in options.items():
+                if key in ["temperature", "top_p", "top_k", "num_ctx", "num_predict"]:
+                    params[key] = value
             
-            # Add either prompt or messages
-            if formatted_messages:
-                request_data["messages"] = formatted_messages
-            else:
-                request_data["prompt"] = prompt
+            # Make the API call using the Ollama SDK
+            response = ollama.chat(
+                model=self.model_id,
+                messages=formatted_messages,
+                options=params,
+                stream=False
+            )
             
-            # Make the request
-            response = self._session.post(api_url, json=request_data)
-            response.raise_for_status()
-            data = response.json()
+            # Extract content from the response
+            content = response.get("message", {}).get("content", "")
             
-            # Extract content
-            if "message" in data:
-                content = data["message"]["content"]
-            else:
-                content = data.get("response", "")
-            
-            # Standardize the response format
-            return self.standardize_response(content)
+            return content
             
         except Exception as e:
-            self._logger.error(f"Ollama request failed: {str(e)}")
-            raise AIRequestError(
-                f"Failed to make Ollama request: {str(e)}",
-                provider="ollama",
-                original_error=e
-            )
+            self.logger.error(f"Ollama request failed: {str(e)}")
+            raise AIRequestError(f"Ollama request error: {str(e)}", provider="ollama")
     
-    def stream(self, messages: Union[str, List[Dict[str, Any]]], **options) -> str:
+    def stream(self, messages: List[Dict[str, str]], **options) -> str:
         """
         Stream a response from the Ollama API.
         
         Args:
-            messages: User message string or list of conversation messages
-            options: Additional request options
+            messages: List of message dictionaries
+            **options: Additional options
             
         Returns:
-            Streamed response as a string
+            Aggregated response as a string
         """
         try:
-            # Handle string input by converting to messages format
-            if isinstance(messages, str):
-                prompt = messages
-                formatted_messages = None
-            else:
-                # Format messages for Ollama API
-                formatted_messages = self._format_messages(messages)
-                # For single user message, use simple prompt
-                if len(formatted_messages) == 1 and formatted_messages[0]["role"] == "user":
-                    prompt = formatted_messages[0]["content"]
-                    formatted_messages = None
-                else:
-                    prompt = None
+            # Format messages for Ollama
+            formatted_messages = self._format_messages(messages)
             
-            # Prepare request data
-            api_url = f"{self._base_url}/api/chat"
-            request_data = {
-                "model": self._model_id,
-                "stream": True,
-                **{k: v for k, v in options.items() if v is not None}
-            }
+            # Merge model parameters with options
+            params = {}
+            for key, value in options.items():
+                if key in ["temperature", "top_p", "top_k", "num_ctx", "num_predict"]:
+                    params[key] = value
             
-            # Add either prompt or messages
-            if formatted_messages:
-                request_data["messages"] = formatted_messages
-            else:
-                request_data["prompt"] = prompt
-            
-            # Make the streaming request
-            response = self._session.post(api_url, json=request_data, stream=True)
-            response.raise_for_status()
-            
-            # Process the stream
-            content = ""
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        chunk = json.loads(line)
-                        if "message" in chunk:
-                            content += chunk["message"]["content"]
-                        else:
-                            content += chunk.get("response", "")
-                    except json.JSONDecodeError:
-                        pass
-            
-            # Standardize the response format
-            return self.standardize_response(content)
+            # Make the streaming API call
+            chunks = []
+            for chunk in ollama.chat(
+                model=self.model_id,
+                messages=formatted_messages,
+                options=params,
+                stream=True
+            ):
+                if "message" in chunk and "content" in chunk["message"]:
+                    chunks.append(chunk["message"]["content"])
+                    
+            # Join all chunks
+            return "".join(chunks)
             
         except Exception as e:
-            self._logger.error(f"Ollama streaming failed: {str(e)}")
-            raise AIRequestError(
-                f"Failed to stream Ollama response: {str(e)}",
-                provider="ollama",
-                original_error=e
-            ) 
+            self.logger.error(f"Ollama streaming failed: {str(e)}")
+            raise AIRequestError(f"Ollama streaming error: {str(e)}", provider="ollama") 

@@ -1,0 +1,13 @@
+find_tools:
+  name: "Tool Finding"
+  description: "Template for finding relevant tools for a user request"
+  default_version: "v1"
+  versions:
+    - version: "v1"
+      template: |
+        Available tools:
+        {{tools_str}}
+        
+        User request: {{prompt}}
+        
+        Which tools would be most useful for this request? Respond with a JSON array of tool names only. 

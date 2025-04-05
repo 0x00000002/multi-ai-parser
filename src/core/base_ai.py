@@ -5,14 +5,13 @@ Implements the AIInterface and provides core conversation features.
 from typing import Dict, List, Any, Optional, Union
 from .interfaces import AIInterface, ProviderInterface
 from ..utils.logger import LoggerInterface, LoggerFactory
-from ..config.config_manager import ConfigManager
-from ..config.models import Model
-from ..exceptions import AISetupError, AIProcessingError
+from ..config.unified_config import UnifiedConfig
+from ..exceptions import AISetupError, AIProcessingError, ErrorHandler
 from ..conversation.conversation_manager import ConversationManager, Message
 from .provider_factory import ProviderFactory
 from .providers.base_provider import BaseProvider
 import uuid
-from ..prompts import PromptManager
+from ..prompts.prompt_template import PromptTemplate
 
 # Default system prompt if none provided
 DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant. Answer the user's questions accurately and concisely."""
@@ -25,76 +24,88 @@ class AIBase(AIInterface):
     """
     
     def __init__(self, 
-                 model: Optional[Union[Model, str]] = None, 
+                 model: Optional[str] = None, 
                  system_prompt: Optional[str] = None,
-                 config_manager: Optional[ConfigManager] = None,
                  logger: Optional[LoggerInterface] = None,
                  request_id: Optional[str] = None,
-                 prompt_manager: Optional[PromptManager] = None):
+                 prompt_template: Optional[PromptTemplate] = None):
         """
         Initialize the base AI implementation.
         
         Args:
-            model: The model to use (Model enum or string ID, or None for default)
+            model: The model to use (string ID, or None for default)
             system_prompt: Custom system prompt (or None for default)
-            config_manager: Configuration manager instance
             logger: Logger instance
             request_id: Unique identifier for tracking this session
-            prompt_manager: PromptManager instance for templated prompts
+            prompt_template: PromptTemplate service for generating prompts
             
         Raises:
             AISetupError: If initialization fails
         """
-        self._request_id = request_id or str(uuid.uuid4())
-        # Create a logger with the appropriate name
-        self._logger = logger or LoggerFactory.create(name=f"ai_framework.{self._request_id[:8]}")
-        self._config_manager = config_manager or ConfigManager()
-
         try:
-            # Get model configuration
-            if model is None:
-                # Use default model if none specified
-                self._model_config = self._config_manager.get_model_config(self._config_manager.default_model)
-                self._logger.info(f"Using default model: {self._model_config.model_id}")
-            else:
-                # Determine the model key to use
-                model_key = model.value if isinstance(model, Model) else model
-                self._model_config = self._config_manager.get_model_config(model_key)
-                model_name = model.name if isinstance(model, Model) else model_key
-                self._logger.info(f"Using model: {model_name} ({self._model_config.model_id})")
+            self._request_id = request_id or str(uuid.uuid4())
+            # Create a logger with the appropriate name
+            self._logger = logger or LoggerFactory.create(name=f"ai_framework.{self._request_id[:8]}")
             
-            # Set up the provider
+            # Get unified configuration
+            self._config = UnifiedConfig.get_instance()
+            
+            # Get model configuration
+            model_id = model or self._config.get_default_model()
+            self._model_config = self._config.get_model_config(model_id)
+            
+            # Set up prompt template
+            self._prompt_template = prompt_template or PromptTemplate(logger=self._logger)
+            
+            # Initialize provider
             self._provider = ProviderFactory.create(
-                provider_type=self._model_config.provider,
-                model_id=model,  # Pass the original model (enum or string)
-                config_manager=self._config_manager,
+                provider_type=self._model_config.get("provider", "openai"),
+                model_id=model_id,
                 logger=self._logger
             )
             
             # Set up conversation manager
-            self._conversation_manager = ConversationManager(self._logger)
+            self._conversation_manager = ConversationManager()
             
-            # Set system prompt
-            self._system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+            # Set system prompt (config, parameter, or default)
+            self._system_prompt = system_prompt or self._config.get_system_prompt() or self._get_default_system_prompt()
             
-            # Add system prompt if provided
-            if self._system_prompt:
-                self._conversation_manager.add_message(
-                    role="system",
-                    content=self._system_prompt
-                )
+            # Add initial system message
+            self._conversation_manager.add_message(
+                role="system",
+                content=self._system_prompt
+            )
             
-            # Initialize prompt manager if provided
-            self._prompt_manager = prompt_manager
+            self._logger.info(f"Initialized AI with model: {model_id}")
             
         except Exception as e:
-            self._logger.error(f"Failed to initialize AI: {str(e)}")
-            raise AISetupError(f"AI initialization failed: {str(e)}")
+            # Use error handler for standardized error handling
+            error_response = ErrorHandler.handle_error(
+                AISetupError(f"Failed to initialize AI: {str(e)}", component="AIBase"),
+                logger
+            )
+            self._logger.error(f"Initialization error: {error_response['message']}")
+            raise
     
     def _get_default_system_prompt(self) -> str:
-        """Get default system prompt based on model configuration."""
-        # This could be extended to load from a prompt library
-        return f"You are a helpful AI assistant using the {self._model_config.model_id} model."
+        """
+        Get default system prompt based on model configuration.
+        Uses the template system if available.
+        
+        Returns:
+            Default system prompt string
+        """
+        try:
+            # Try to use template
+            prompt, _ = self._prompt_template.render_prompt(
+                template_id="base_ai",
+                variables={"model_id": self._model_config.get("model_id", "")}
+            )
+            return prompt
+        except (ValueError, AttributeError):
+            # Fallback to hardcoded prompt
+            self._logger.warning("System prompt template not found, using fallback")
+            return f"You are a helpful AI assistant using the {self._model_config.get('model_id', 'default')} model."
     
     def request(self, prompt: str, **options) -> str:
         """
@@ -110,9 +121,9 @@ class AIBase(AIInterface):
         Raises:
             AIProcessingError: If the request fails
         """
-        self._logger.info(f"Processing request: {prompt[:50]}...")
-        
         try:
+            self._logger.info(f"Processing request: {prompt[:50]}...")
+            
             # Add user message
             self._conversation_manager.add_message(role="user", content=prompt)
             
@@ -131,14 +142,19 @@ class AIBase(AIInterface):
                 role="assistant",
                 content=content,
                 extract_thoughts=True,
-                show_thinking=self._config_manager.show_thinking
+                show_thinking=self._config.show_thinking
             )
             
             return content
             
         except Exception as e:
-            self._logger.error(f"Request failed: {str(e)}")
-            raise AIProcessingError(f"Request failed: {str(e)}")
+            # Use error handler for standardized error handling
+            error_response = ErrorHandler.handle_error(
+                AIProcessingError(f"Request failed: {str(e)}", component="AIBase"),
+                self._logger
+            )
+            self._logger.error(f"Request error: {error_response['message']}")
+            raise
     
     def stream(self, prompt: str, **options) -> str:
         """
@@ -154,9 +170,9 @@ class AIBase(AIInterface):
         Raises:
             AIProcessingError: If streaming fails
         """
-        self._logger.info(f"Processing streaming request: {prompt[:50]}...")
-        
         try:
+            self._logger.info(f"Processing streaming request: {prompt[:50]}...")
+            
             # Add user message
             self._conversation_manager.add_message(role="user", content=prompt)
             
@@ -175,17 +191,26 @@ class AIBase(AIInterface):
                 role="assistant", 
                 content=content,
                 extract_thoughts=True,
-                show_thinking=self._config_manager.show_thinking
+                show_thinking=self._config.show_thinking
             )
             
             return content
             
         except Exception as e:
-            self._logger.error(f"Streaming failed: {str(e)}")
-            raise AIProcessingError(f"Streaming failed: {str(e)}")
+            # Use error handler for standardized error handling
+            error_response = ErrorHandler.handle_error(
+                AIProcessingError(f"Streaming failed: {str(e)}", component="AIBase"),
+                self._logger
+            )
+            self._logger.error(f"Streaming error: {error_response['message']}")
+            raise
     
     def reset_conversation(self) -> None:
-        """Reset the conversation history."""
+        """
+        Reset the conversation history.
+        
+        Clears all messages and restores the system prompt.
+        """
         self._conversation_manager.reset()
         self._logger.info("Conversation history reset")
         
@@ -201,137 +226,9 @@ class AIBase(AIInterface):
         Get the conversation history.
         
         Returns:
-            List of messages
+            List of messages in the conversation
         """
         return self._conversation_manager.get_messages()
-
-    def request_with_template(self, 
-                             template_id: str, 
-                             variables: Optional[Dict[str, Any]] = None,
-                             user_id: Optional[str] = None,
-                             **options) -> str:
-        """
-        Make a request using a prompt template.
-        
-        Args:
-            template_id: ID of the template to use
-            variables: Variables for the template
-            user_id: User ID for A/B testing
-            options: Additional options for the request
-            
-        Returns:
-            The model's response as a string
-            
-        Raises:
-            ValueError: If prompt_manager is not set or template not found
-        """
-        if not self._prompt_manager:
-            raise ValueError("No prompt manager set. Use set_prompt_manager() first.")
-        
-        # Start timing for metrics
-        import time
-        start_time = time.time()
-        
-        # Get rendered prompt from template
-        rendered_prompt, usage_id = self._prompt_manager.render_prompt(
-            template_id=template_id,
-            variables=variables,
-            user_id=user_id,
-            context={"model": self._model_config.model_id}
-        )
-        
-        self._logger.info(f"Using template {template_id} with variables: {variables}")
-        
-        # Make the request with the rendered prompt
-        response = self.request(rendered_prompt, **options)
-        
-        # Calculate metrics
-        end_time = time.time()
-        latency = end_time - start_time
-        
-        # Record metrics if we have a usage ID
-        if usage_id:
-            # Extract token counts if available in options
-            metrics = {
-                "latency": latency,
-                "model": self._model_config.model_id
-            }
-            
-            # Add token counts if response has them
-            if hasattr(response, 'usage') and response.usage:
-                metrics.update({
-                    "prompt_tokens": response.usage.get("prompt_tokens", 0),
-                    "completion_tokens": response.usage.get("completion_tokens", 0),
-                    "total_tokens": response.usage.get("total_tokens", 0)
-                })
-            
-            # Record performance
-            self._prompt_manager.record_prompt_performance(
-                usage_id=usage_id,
-                metrics=metrics
-            )
-        
-        return response
-    
-    def stream_with_template(self, 
-                           template_id: str, 
-                           variables: Optional[Dict[str, Any]] = None,
-                           user_id: Optional[str] = None,
-                           **options) -> str:
-        """
-        Stream a response using a prompt template.
-        
-        Args:
-            template_id: ID of the template to use
-            variables: Variables for the template
-            user_id: User ID for A/B testing
-            options: Additional options for the request
-            
-        Returns:
-            The complete streamed response
-            
-        Raises:
-            ValueError: If prompt_manager is not set or template not found
-        """
-        if not self._prompt_manager:
-            raise ValueError("No prompt manager set. Use set_prompt_manager() first.")
-        
-        # Start timing for metrics
-        import time
-        start_time = time.time()
-        
-        # Get rendered prompt from template
-        rendered_prompt, usage_id = self._prompt_manager.render_prompt(
-            template_id=template_id,
-            variables=variables,
-            user_id=user_id,
-            context={"model": self._model_config.model_id}
-        )
-        
-        self._logger.info(f"Streaming with template {template_id} with variables: {variables}")
-        
-        # Make the streaming request with the rendered prompt
-        response = self.stream(rendered_prompt, **options)
-        
-        # Calculate metrics
-        end_time = time.time()
-        latency = end_time - start_time
-        
-        # Record metrics if we have a usage ID
-        if usage_id:
-            metrics = {
-                "latency": latency,
-                "model": self._model_config.model_id,
-                "streaming": True
-            }
-            
-            # Record performance
-            self._prompt_manager.record_prompt_performance(
-                usage_id=usage_id,
-                metrics=metrics
-            )
-        
-        return response
     
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -344,12 +241,18 @@ class AIBase(AIInterface):
         self._conversation_manager.set_system_prompt(system_prompt)
         self._logger.info("System prompt updated")
     
-    def set_prompt_manager(self, prompt_manager: PromptManager) -> None:
+    def get_model_info(self) -> Dict[str, Any]:
         """
-        Set the prompt manager for template-based prompts.
+        Get information about the current model.
         
-        Args:
-            prompt_manager: PromptManager instance
+        Returns:
+            Dictionary with model information
         """
-        self._prompt_manager = prompt_manager
-        self._logger.info("Prompt manager set")
+        return {
+            "model_id": self._model_config.get("model_id", ""),
+            "provider": self._model_config.get("provider", ""),
+            "quality": self._model_config.get("quality", ""),
+            "speed": self._model_config.get("speed", ""),
+            "parameters": self._model_config.get("parameters", {}),
+            "privacy": self._model_config.get("privacy", "")
+        }
