@@ -1,0 +1,13 @@
+tool_enhancement:
+  name: "Tool Enhancement"
+  description: "Template for enhancing a prompt with available tools"
+  default_version: "v1"
+  versions:
+    - version: "v1"
+      template: |
+        {{prompt}}
+        
+        Available tools:
+        {{tool_descriptions}}
+        
+        Use these tools when appropriate to answer the query. 

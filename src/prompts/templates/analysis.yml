@@ -1,0 +1,51 @@
+analyze_request:
+  name: "Request Analysis"
+  description: "Template for analyzing user requests to determine appropriate agents"
+  default_version: "v1"
+  versions:
+    - version: "v1"
+      template: |
+        Analyze this user request and determine which specialized agents should handle it:
+        
+        Request: {{prompt}}
+        
+        Available agents:
+        {{agent_list}}
+        
+        Return a JSON list of [agent_id, confidence] pairs, where confidence is 0.0-1.0.
+        Only include agents with confidence > {{confidence_threshold}}. If no agents are appropriate, return [].
+
+analyze_tools:
+  name: "Tool Analysis"
+  description: "Template for analyzing user requests to determine relevant tools"
+  default_version: "v1"
+  versions:
+    - version: "v1"
+      template: |
+        Analyze this user request and determine which tools would be helpful:
+        
+        Request: {{prompt}}
+        
+        Available tools:
+        {{tool_list}}
+        
+        Return a JSON list of tool IDs that would be helpful for this request.
+        If no tools are needed, return [].
+
+aggregate_responses:
+  name: "Response Aggregation"
+  description: "Template for aggregating responses from multiple agents"
+  default_version: "v1"
+  versions:
+    - version: "v1"
+      template: |
+        Original user request: {{prompt}}
+        
+        Multiple agents have provided responses to this request:
+        
+        {{responses_text}}
+        
+        Create a unified, coherent response that combines the most relevant information from each agent.
+        Focus on addressing the original request completely and clearly.
+        Eliminate redundancies and resolve any contradictions between the responses.
+        Make the response flow naturally as if it came from a single source. 

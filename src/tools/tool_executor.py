@@ -2,54 +2,123 @@
 Tool executor for handling tool execution.
 """
 from typing import Any, Dict, Optional
+import time
+from functools import wraps
+import signal
 from .interfaces import ToolStrategy
 from ..utils.logger import LoggerInterface, LoggerFactory
 from ..exceptions import AIToolError
-from .models import ToolResult
+from .models import ToolResult, ToolExecutionStatus
+
+
+class TimeoutError(Exception):
+    """Exception raised when a tool execution times out."""
+    pass
+
+
+def timeout_handler(signum, frame):
+    """Signal handler for timeout."""
+    raise TimeoutError("Tool execution timed out")
 
 
 class ToolExecutor:
     """Executor for handling tool execution."""
     
-    def __init__(self, logger: Optional[LoggerInterface] = None):
+    def __init__(self, logger: Optional[LoggerInterface] = None, timeout: int = 30, max_retries: int = 3):
         """
         Initialize the tool executor.
         
         Args:
             logger: Logger instance
+            timeout: Execution timeout in seconds (default: 30)
+            max_retries: Maximum number of retry attempts (default: 3)
         """
-        self._logger = logger
+        self._logger = logger or LoggerFactory.create("tool_executor")
+        self.timeout = timeout
+        self.max_retries = max_retries
     
-    def execute(self, tool_name: str, tool: ToolStrategy, **args) -> ToolResult:
+    def _execute_with_timeout(self, tool, args):
         """
-        Execute a tool with the given arguments.
+        Execute a tool with timeout.
         
         Args:
-            tool_name: The name of the tool being executed
             tool: The tool to execute
-            args: Arguments to pass to the tool
+            args: Tool arguments
             
         Returns:
             Tool execution result
             
         Raises:
-            AIToolError: If execution fails
+            TimeoutError: If execution times out
         """
+        # Set signal handler for SIGALRM
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(self.timeout)
+        
         try:
             # Execute the tool
             result = tool.execute(**args)
+            return result
+        finally:
+            # Cancel the alarm
+            signal.alarm(0)
+    
+    def execute(self, tool_definition, **args) -> ToolResult:
+        """
+        Execute a tool with the given arguments and retry on failure.
+        
+        Args:
+            tool_definition: The tool definition object
+            args: Arguments to pass to the tool
             
-            return ToolResult(
-                success=True,
-                result=result,
-                tool_name=tool_name
-            )
+        Returns:
+            Tool execution result
+        """
+        tool_name = tool_definition.name
+        tool = tool_definition
+        
+        # Extract request_id if present
+        request_id = args.pop("request_id", None)
+        
+        # Try to execute the tool with retries
+        retries = 0
+        last_error = None
+        execution_time_ms = None
+        
+        while retries <= self.max_retries:
+            start_time = time.time()
+            try:
+                # Try to execute with timeout
+                try:
+                    result = self._execute_with_timeout(tool, args)
+                    end_time = time.time()
+                    execution_time_ms = int((end_time - start_time) * 1000)
+                    
+                    # Successful execution
+                    return ToolResult(
+                        status=ToolExecutionStatus.SUCCESS,
+                        result=result,
+                        error=None
+                    )
+                except TimeoutError as e:
+                    self._logger.warning(f"Tool {tool_name} execution timed out after {self.timeout} seconds")
+                    last_error = str(e)
+                    
+            except Exception as e:
+                self._logger.warning(f"Tool {tool_name} execution failed (attempt {retries+1}/{self.max_retries+1}): {str(e)}")
+                last_error = str(e)
             
-        except Exception as e:
-            self._logger.error(f"Tool execution failed: {str(e)}")
-            return ToolResult(
-                success=False,
-                result=None,
-                error=str(e),
-                tool_name=tool_name
-            ) 
+            # Increment retry counter
+            retries += 1
+            
+            # If we have more retries, wait before trying again
+            if retries <= self.max_retries:
+                time.sleep(min(2 ** retries, 10))  # Exponential backoff with max of 10 seconds
+        
+        # If we get here, all retries failed
+        self._logger.error(f"Tool {tool_name} execution failed after {self.max_retries+1} attempts")
+        return ToolResult(
+            status=ToolExecutionStatus.ERROR,
+            result=None,
+            error=last_error or "Unknown error"
+        ) 

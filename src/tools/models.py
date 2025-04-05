@@ -3,6 +3,17 @@ Models for tool-related functionality.
 """
 from typing import Dict, Any, List, Optional, Callable
 from pydantic import BaseModel, Field
+from enum import Enum
+from .tool_call import ToolCall
+
+
+class ToolExecutionStatus(str, Enum):
+    """Enum for tool execution status."""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class ToolDefinition(BaseModel):
@@ -12,12 +23,6 @@ class ToolDefinition(BaseModel):
     parameters_schema: Dict[str, Any] = Field(..., description="JSON schema for tool parameters")
     function: Callable = Field(..., description="The actual tool function to execute")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional tool metadata")
-
-
-class ToolCall(BaseModel):
-    """Model for a tool call request."""
-    name: str
-    arguments: Dict[str, Any]
 
 
 class ToolCallRequest(BaseModel):

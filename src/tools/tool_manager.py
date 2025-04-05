@@ -1,201 +1,325 @@
 """
-Tool manager for coordinating tool registration, discovery, and execution.
+Tool Manager Module
+
+This module provides a manager for coordinating tool operations in the Agentic-AI framework.
 """
-from typing import Dict, List, Any, Optional, Set, Union, Callable
-from .interfaces import ToolStrategy
-from ..utils.logger import LoggerInterface, LoggerFactory
-from ..config.config_manager import ConfigManager
-from ..exceptions import AIToolError
-# from .tool_finder import ToolFinder # Old simple finder
-from .ai_tool_finder import AIToolFinder # New AI-powered finder
-from .tool_registry import ToolRegistry
-from .tool_executor import ToolExecutor
-from .tool_prompt_builder import ToolPromptBuilder
-from .models import ToolResult
+from typing import Dict, Any, List, Optional, Set, Union, TYPE_CHECKING
+import json
+import time
+
+from src.utils.logger import LoggerFactory
+from src.tools.tool_registry import ToolRegistry
+from src.tools.tool_executor import ToolExecutor
+from src.tools.models import ToolDefinition, ToolResult, ToolExecutionStatus
+from src.exceptions import AIToolError
+from src.config.unified_config import UnifiedConfig
+
+if TYPE_CHECKING:
+    from src.agents.tool_finder_agent import ToolFinderAgent
+    from src.agents import AgentFactory
 
 
 class ToolManager:
     """
-    Centralized tool management system.
-    Coordinates tool registration, discovery, and execution.
+    Manager for coordinating tool operations in the Agentic-AI framework.
+    
+    This class coordinates tool registration, discovery, and execution.
+    It works with the ToolRegistry to maintain tool definitions and usage statistics,
+    and with the ToolFinderAgent to find relevant tools for user requests.
     """
     
-    def __init__(self, 
-                 logger: Optional[LoggerInterface] = None,
-                 config_manager: Optional[ConfigManager] = None,
-                 tool_registry: Optional[ToolRegistry] = None,
-                 tool_finder: Optional[AIToolFinder] = None,
-                 tool_executor: Optional[ToolExecutor] = None):
+    def __init__(self, unified_config=None, logger=None, tool_registry=None, tool_executor=None, agent_factory=None):
         """
         Initialize the tool manager.
         
         Args:
-            logger: Logger instance
-            config_manager: Configuration manager
-            tool_registry: Tool registry instance
-            tool_finder: Tool finder instance
-            tool_executor: Tool executor instance
+            unified_config: Optional UnifiedConfig instance
+            logger: Optional logger instance
+            tool_registry: Optional tool registry
+            tool_executor: Optional tool executor
+            agent_factory: Optional agent factory for creating the ToolFinderAgent
         """
-        self._logger = logger or LoggerFactory.create()
-        self._config_manager = config_manager or ConfigManager()
-        self._tool_registry = tool_registry or ToolRegistry(self._logger)
-        self._tool_executor = tool_executor or ToolExecutor(self._logger)
-        self._tool_finder = tool_finder
-        self._auto_find_tools = False
+        self.logger = logger or LoggerFactory.create("tool_manager")
+        self.config = unified_config or UnifiedConfig.get_instance()
         
-        # Set available tools in tool finder if it exists
-        if self._tool_finder:
-            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
-    
-    def enable_auto_tool_finding(self, enabled: bool = True, 
-                                tool_finder_model_id: Optional[str] = None) -> None:
-        """
-        Enable or disable automatic tool finding.
+        # Load tool configuration
+        self.tool_config = self.config.get_tool_config()
         
-        Args:
-            enabled: Whether to enable automatic tool finding
-            tool_finder_model_id: Model ID to use for tool finding
-        """
-        if enabled and not self._tool_finder:
-            if not tool_finder_model_id:
-                # Attempt to get a default model from config or raise error
-                # This logic might need refinement based on how defaults are handled
-                default_model_id = self._config_manager.get_default_model_id() # Assuming such a method exists
-                if not default_model_id:
-                    raise AIToolError("A tool finder model ID must be provided when enabling auto tool finding and no default is set.")
-                tool_finder_model_id = default_model_id
-                self._logger.info(f"Using default model '{tool_finder_model_id}' for AIToolFinder.")
-
-            self._tool_finder = AIToolFinder(
-                model_id=tool_finder_model_id,
-                config_manager=self._config_manager,
-                logger=self._logger
-            )
-            # Set available tools in the new tool finder
-            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
+        # Initialize tool registry and executor with config
+        self.tool_registry = tool_registry or ToolRegistry(logger=self.logger)
         
-        # Update existing tool finder's available tools if re-enabled or tools changed
-        elif enabled and self._tool_finder:
-            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
-
-        self._auto_find_tools = enabled
-        self._logger.info(f"Auto tool finding {'enabled' if enabled else 'disabled'}")
-    
-    def register_tool(self, tool_name: str, tool_function: Callable, 
-                     description: str, parameters_schema: Dict[str, Any]) -> None:
+        # Configure tool executor with settings from config
+        executor_config = self.tool_config.get("execution", {})
+        self.tool_executor = tool_executor or ToolExecutor(
+            logger=self.logger,
+            timeout=executor_config.get("timeout", 30),
+            max_retries=executor_config.get("max_retries", 3)
+        )
+        
+        self.agent_factory = agent_factory
+        
+        # Tool finder agent
+        self.tool_finder_agent = None
+        
+        # Initialize stats configuration
+        self._init_stats_config()
+        
+        self.logger.info("Tool manager initialized")
+        
+    def _init_stats_config(self):
+        """Initialize statistics configuration from the config file."""
+        stats_config = self.tool_config.get("stats", {})
+        self.stats_storage_path = stats_config.get("storage_path", "data/tool_stats.json")
+        
+        # If stats tracking is enabled and a storage path is specified, try to load
+        if stats_config.get("track_usage", True) and self.stats_storage_path:
+            try:
+                self.load_usage_stats(self.stats_storage_path)
+            except Exception as e:
+                self.logger.warning(f"Failed to load tool usage stats: {str(e)}")
+                
+    def register_tool(self, tool_name: str, tool_definition: ToolDefinition) -> None:
         """
-        Register a custom tool.
+        Register a tool with the tool registry.
         
         Args:
-            tool_name: Unique name for the tool
-            tool_function: The function implementing the tool
-            description: Description of what the tool does
-            parameters_schema: JSON schema for the tool parameters
+            tool_name: Name of the tool
+            tool_definition: Tool definition object
+        """
+        self.tool_registry.register_tool(tool_name, tool_definition)
+        
+        # If tool finder agent exists, update its available tools
+        if self.tool_finder_agent:
+            self.logger.debug(f"Updating tool finder agent with new tool: {tool_name}")
+    
+    def enable_agent_based_tool_finding(self, ai_instance) -> None:
+        """
+        Enable agent-based tool finding using the ToolFinderAgent.
+        
+        Args:
+            ai_instance: AI instance for the ToolFinderAgent
+        """
+        # Check if tool finder is enabled in the configuration
+        finder_config = self.tool_config.get("finder_agent", {})
+        if not finder_config.get("enabled", True):
+            self.logger.info("Agent-based tool finding is disabled in configuration")
+            return
             
-        Raises:
-            AIToolError: If registration fails
-        """
+        if not self.agent_factory:
+            self.logger.warning("Agent factory not provided, cannot create ToolFinderAgent")
+            return
+            
         try:
-            self._tool_registry.register_tool(
-                tool_name=tool_name,
-                tool_function=tool_function,
-                description=description,
-                parameters_schema=parameters_schema
+            # Import here to avoid circular dependency
+            from src.agents import AgentFactory
+            
+            # Create the ToolFinderAgent with configuration
+            self.tool_finder_agent = self.agent_factory.create_agent(
+                "tool_finder",
+                ai_instance=ai_instance,
+                tool_registry=self.tool_registry,
+                max_recommendations=finder_config.get("max_recommendations", 5),
+                use_history=finder_config.get("use_history", True)
             )
-            self._logger.info(f"Tool registered: {tool_name}")
+            
+            self.logger.info("Agent-based tool finding enabled")
         except Exception as e:
-            self._logger.error(f"Tool registration failed: {str(e)}")
-            raise AIToolError(f"Failed to register tool {tool_name}: {str(e)}")
-        
-        # Update tool finder if it exists
-        if self._tool_finder:
-            self._tool_finder.set_available_tools(self._tool_registry.get_all_tool_definitions())
+            self.logger.error(f"Failed to create ToolFinderAgent: {str(e)}")
     
-    @property
-    def auto_find_tools(self) -> bool:
-        """Get auto tool finding setting."""
-        return self._auto_find_tools
-    
-    def find_tools(self, prompt: str, conversation_history: Optional[List[str]] = None) -> Set[str]:
+    def find_tools(self, prompt: str, conversation_history: Optional[List[str]] = None) -> List[str]:
         """
         Find relevant tools for a given prompt.
         
         Args:
-            prompt: The user prompt
-            conversation_history: Optional list of recent conversation messages
+            prompt: User prompt to analyze
+            conversation_history: Optional conversation history
             
         Returns:
-            Set of tool names that are relevant to the prompt
+            List of relevant tool names
+        """
+        if not self.tool_finder_agent:
+            self.logger.warning("Tool finder agent not enabled, using registry recommendations")
+            # Get the max recommendations from config
+            finder_config = self.tool_config.get("finder_agent", {})
+            max_tools = finder_config.get("max_recommendations", 5)
+            return self.tool_registry.get_recommended_tools(prompt, max_tools=max_tools)
             
-        Raises:
-            AIToolError: If tool finding fails or is not configured
-        """
-        if not self._tool_finder:
-            raise AIToolError("Tool finder not configured")
-        
         try:
-            return self._tool_finder.find_tools(prompt, conversation_history)
+            # Create a request object for the agent
+            request = type('Request', (), {
+                'prompt': prompt,
+                'conversation_history': conversation_history or []
+            })
+            
+            # Process the request with the tool finder agent
+            response = self.tool_finder_agent.process_request(request)
+            
+            if response.status == "success":
+                return response.selected_tools
+            else:
+                self.logger.warning(f"Tool finder agent returned error: {response.content}")
+                return []
         except Exception as e:
-            # Catch specific AIToolError from finder if needed for different handling
-            self._logger.error(f"Tool finding failed: {str(e)}")
-            return set()  # Return empty set on error
+            self.logger.error(f"Error finding tools: {str(e)}")
+            return []
     
-    def execute_tool(self, tool_name: str, **args) -> ToolResult:
+    def execute_tool(self, tool_name: str, **kwargs) -> ToolResult:
         """
-        Execute a specific tool.
+        Execute a tool with the given parameters.
         
         Args:
             tool_name: Name of the tool to execute
-            args: Arguments to pass to the tool
+            **kwargs: Parameters for the tool
             
         Returns:
-            Tool execution result
-            
-        Raises:
-            AIToolError: If tool execution fails
+            ToolResult object with execution results
         """
         try:
-            # Get tool from registry
-            tool = self._tool_registry.get_tool(tool_name)
-            if not tool:
-                raise AIToolError(f"Tool not found: {tool_name}")
+            # Get the tool definition
+            tool_definition = self.tool_registry.get_tool(tool_name)
+            
+            if not tool_definition:
+                return ToolResult(
+                    status=ToolExecutionStatus.ERROR,
+                    error=f"Tool not found: {tool_name}",
+                    result=None
+                )
+                
+            # Execute the tool using configs from tool_config if applicable
+            tool_specific_config = self.config.get_tool_config(tool_name)
+            execution_params = {**kwargs}
+            
+            # Add any tool-specific configuration parameters
+            if tool_specific_config:
+                for param, value in tool_specific_config.items():
+                    if param not in execution_params:
+                        execution_params[param] = value
+            
+            # Track start time for metrics
+            start_time = time.time()
+            
+            # Extract request_id if present for metrics tracking
+            request_id = kwargs.get("request_id")
             
             # Execute the tool
-            return self._tool_executor.execute(tool_name, tool, **args)
+            result = self.tool_executor.execute(tool_definition, **execution_params)
+            
+            # Calculate execution time
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Update usage stats if tracking is enabled
+            stats_config = self.tool_config.get("stats", {})
+            if stats_config.get("track_usage", True):
+                success = result.status == ToolExecutionStatus.SUCCESS
+                self.tool_registry.update_usage_stats(
+                    tool_name, 
+                    success,
+                    request_id=request_id,
+                    duration_ms=execution_time_ms
+                )
+            
+            return result
         except Exception as e:
-            self._logger.error(f"Tool execution failed: {str(e)}")
+            self.logger.error(f"Error executing tool {tool_name}: {str(e)}")
             return ToolResult(
-                success=False,
-                tool_name=tool_name,
-                message=f"Execution failed: {str(e)}"
+                status=ToolExecutionStatus.ERROR,
+                error=str(e),
+                result=None
             )
     
-    def enhance_prompt(self, prompt: str, tool_names: Set[str]) -> str:
+    def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
         """
-        Enhance a prompt with tool information.
+        Get information about a tool.
         
         Args:
-            prompt: The original prompt
-            tool_names: Set of tool names to include
+            tool_name: Name of the tool
             
         Returns:
-            Enhanced prompt with tool information
-            
-        Raises:
-            AIToolError: If prompt enhancement fails
+            Dictionary with tool information or None if not found
         """
-        try:
-            tools_with_names = []
-            for name in tool_names:
-                tool = self._tool_registry.get_tool(name)
-                if tool:
-                    tools_with_names.append((name, tool))
+        tool_definition = self.tool_registry.get_tool(tool_name)
+        
+        if not tool_definition:
+            return None
             
-            if not tools_with_names: # Return original prompt if no valid tools found
-                self._logger.warning(f"No valid tools found for names: {tool_names}")
-                return prompt
-                
-            return ToolPromptBuilder.build_enhanced_prompt(prompt, tools_with_names)
-        except Exception as e:
-            self._logger.error(f"Prompt enhancement failed: {str(e)}")
-            raise AIToolError(f"Failed to enhance prompt: {str(e)}") 
+        # Get usage stats
+        usage_stats = self.tool_registry.get_usage_stats(tool_name)
+        
+        # Get any additional tool configuration
+        tool_config = self.config.get_tool_config(tool_name)
+        
+        return {
+            "name": tool_name,
+            "description": tool_definition.description,
+            "parameters": tool_definition.parameters,
+            "usage_stats": usage_stats,
+            "config": tool_config
+        }
+    
+    def get_all_tools(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get information about all registered tools.
+        
+        Returns:
+            Dictionary mapping tool names to tool information
+        """
+        tools = {}
+        
+        for tool_name in self.tool_registry.get_tool_names():
+            tools[tool_name] = self.get_tool_info(tool_name)
+            
+        return tools
+    
+    def format_tools_for_model(self, model_id: str, tool_names: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Format tools for use with a specific model.
+        
+        Args:
+            model_id: Model identifier
+            tool_names: Optional list of tool names to format
+            
+        Returns:
+            List of formatted tools for the model's provider
+        """
+        # Get the model configuration
+        model_config = self.config.get_model_config(model_id)
+        if not model_config or "provider" not in model_config:
+            self.logger.warning(f"Unable to determine provider for model {model_id}, using default tool format")
+            return []
+            
+        # Get the provider from the model configuration
+        provider_name = model_config["provider"].upper()
+            
+        # Convert list to set if provided
+        tool_names_set = set(tool_names) if tool_names else None
+        
+        # Format tools for the provider
+        return self.tool_registry.format_tools_for_provider(provider_name, tool_names_set)
+    
+    def save_usage_stats(self, file_path: str = None) -> None:
+        """
+        Save usage statistics to a file.
+        
+        Args:
+            file_path: Path to save the statistics to, uses config path if None
+        """
+        # Use the configured path if none provided
+        if file_path is None:
+            stats_config = self.tool_config.get("stats", {})
+            file_path = stats_config.get("storage_path", "data/tool_stats.json")
+            
+        self.tool_registry.save_stats(file_path)
+    
+    def load_usage_stats(self, file_path: str = None) -> None:
+        """
+        Load usage statistics from a file.
+        
+        Args:
+            file_path: Path to load the statistics from, uses config path if None
+        """
+        # Use the configured path if none provided
+        if file_path is None:
+            stats_config = self.tool_config.get("stats", {})
+            file_path = stats_config.get("storage_path", "data/tool_stats.json")
+            
+        self.tool_registry.load_stats(file_path) 

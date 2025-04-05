@@ -1,86 +1,74 @@
 """
-Factory for creating AI providers.
+Factory for creating provider instances.
 """
-from typing import Optional, Union, Dict, Any
-from ..utils.logger import LoggerInterface, LoggerFactory
-from ..config.config_manager import ConfigManager
-from ..config.models import Model
-from ..exceptions import AISetupError
+from typing import Optional, Dict, Any, Type, Union
+
+from ..config.unified_config import UnifiedConfig
 from .providers.base_provider import BaseProvider
-from .providers.anthropic_provider import AnthropicProvider
 from .providers.openai_provider import OpenAIProvider
-from .providers.ollama_provider import OllamaProvider
+from .providers.anthropic_provider import AnthropicProvider
 from .providers.gemini_provider import GeminiProvider
+from .providers.ollama_provider import OllamaProvider
+from ..utils.logger import LoggerFactory, LoggerInterface
 
 
 class ProviderFactory:
-    """Factory for creating AI providers."""
+    """
+    Factory for creating provider instances.
+    
+    This class provides a centralized way to create provider instances
+    based on the provider type and model configuration.
+    """
     
     _providers = {
-        "anthropic": AnthropicProvider,
-        "openai": OpenAIProvider,
-        "ollama": OllamaProvider,
-        "gemini": GeminiProvider
+        'openai': OpenAIProvider,
+        'anthropic': AnthropicProvider,
+        'gemini': GeminiProvider,
+        'ollama': OllamaProvider,
     }
     
     @classmethod
-    def create(cls,
-               provider_type: Optional[str] = None,
-               model_id: Optional[Union[Model, str]] = None,
-               config_manager: Optional[ConfigManager] = None,
-               logger: Optional[LoggerInterface] = None) -> BaseProvider:
+    def create(
+        cls, 
+        provider_type: str, 
+        model_id: str,
+        logger: Optional[LoggerInterface] = None
+    ) -> BaseProvider:
         """
         Create a provider instance.
         
         Args:
-            provider_type: Type of provider to create (optional if model_id is a config key)
-            model_id: Model to use (can be Model enum, config key, or model ID)
-            config_manager: Configuration manager instance
+            provider_type: Type of provider (e.g., 'openai', 'anthropic')
+            model_id: Model identifier
             logger: Logger instance
             
         Returns:
             Provider instance
             
         Raises:
-            AISetupError: If provider creation fails
+            ValueError: If the provider type is not supported
         """
-        try:
-            # Create logger if not provided
-            if logger is None:
-                logger = LoggerFactory.create()
-                
-            # Create config manager if not provided
-            if config_manager is None:
-                config_manager = ConfigManager()
-            
-            # Handle the model_id parameter
-            model_key = None
-            if isinstance(model_id, Model):
-                # If it's a Model enum, get its value (which is the config key)
-                model_key = model_id.value
-                logger.debug(f"Using Model enum value: {model_key}")
-            else:
-                # Assume it's a string model key/ID
-                model_key = model_id
-            
-            # Get model configuration to resolve the actual model_id and provider
-            model_config = config_manager.get_model_config(model_key)
-            
-            # Use provider from model config if not specified
-            provider_type = provider_type or model_config.provider
-            
-            # Get provider class
-            provider_class = cls._providers.get(provider_type.lower())
-            if not provider_class:
-                raise AISetupError(f"Unsupported provider type: {provider_type}")
-            
-            # Create and return provider instance with resolved model_id
-            logger.info(f"Creating provider {provider_type} for model {model_key} ({model_config.model_id})")
-            return provider_class(
-                model_id=model_config.model_id,  # Use the actual model_id from config
-                config_manager=config_manager,
-                logger=logger
-            )
-            
-        except Exception as e:
-            raise AISetupError(f"Failed to create provider: {str(e)}") 
+        # Get provider class
+        provider_class = cls._providers.get(provider_type)
+        if not provider_class:
+            raise ValueError(f"Unsupported provider type: {provider_type}")
+        
+        # Create logger if not provided
+        logger = logger or LoggerFactory.create(f"provider.{provider_type}")
+        
+        # Create the provider instance
+        return provider_class(
+            model_id=model_id,
+            logger=logger
+        )
+    
+    @classmethod
+    def register_provider(cls, provider_type: str, provider_class: Type[BaseProvider]) -> None:
+        """
+        Register a new provider type.
+        
+        Args:
+            provider_type: Type identifier for the provider
+            provider_class: Provider class to register
+        """
+        cls._providers[provider_type] = provider_class 

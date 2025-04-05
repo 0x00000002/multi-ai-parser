@@ -1,153 +1,305 @@
 """
-Prompt template implementation.
-Provides a flexible templating system for prompts with variable substitution.
+Prompt Template service.
+Provides functionality for template-based prompts with variable substitution,
+versioning, and performance tracking.
 """
-from typing import Dict, Any, Optional, Set
-import re
+from typing import Dict, Any, Optional, Tuple, List
+import os
 import uuid
-from datetime import datetime
+import re
+import time
+import json
+import yaml
+from ..utils.logger import LoggerInterface, LoggerFactory
+from ..exceptions import AIConfigError, ErrorHandler
 
 
 class PromptTemplate:
     """
-    Template-based prompt with variable substitution.
-    Supports Jinja-like syntax for variable interpolation: {{variable_name}}
+    Service for managing prompt templates with versioning and performance tracking.
     """
     
     def __init__(self, 
-                 template_id: Optional[str] = None,
-                 name: str = "",
-                 description: str = "",
-                 template: str = "",
-                 default_values: Optional[Dict[str, Any]] = None):
+                 templates_dir: Optional[str] = None,
+                 logger: Optional[LoggerInterface] = None):
         """
-        Initialize a prompt template.
+        Initialize the prompt template service.
         
         Args:
-            template_id: Unique identifier for the template (auto-generated if None)
-            name: Human-readable name for the template
-            description: Description of the template's purpose
-            template: The template string with variable placeholders
-            default_values: Default values for template variables
+            templates_dir: Directory containing template files (or None for default)
+            logger: Logger instance
         """
-        self.template_id = template_id or str(uuid.uuid4())
-        self.name = name
-        self.description = description
-        self.template = template
-        self.default_values = default_values or {}
-        self.created_at = datetime.utcnow()
-        self.updated_at = self.created_at
+        self._logger = logger or LoggerFactory.create(name="prompt_template")
         
-    def get_variables(self) -> Set[str]:
-        """
-        Extract all variable names from the template.
+        # Determine templates directory
+        if templates_dir is None:
+            # Default to 'templates' subdirectory in the prompts directory
+            self._templates_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "prompts",
+                "templates"
+            )
+        else:
+            self._templates_dir = templates_dir
+            
+        # Create directory if it doesn't exist
+        os.makedirs(self._templates_dir, exist_ok=True)
+            
+        self._logger.info(f"Using templates directory: {self._templates_dir}")
         
-        Returns:
-            Set of variable names
-        """
-        pattern = r'\{\{([^}]+)\}\}'
-        return set(re.findall(pattern, self.template))
+        # Initialize template cache
+        self._templates = {}
+        self._template_metrics = {}
+        
+        # Load templates
+        self._load_templates()
     
-    def render(self, variables: Optional[Dict[str, Any]] = None) -> str:
+    def _load_templates(self):
+        """Load templates from the templates directory."""
+        if not os.path.exists(self._templates_dir):
+            self._logger.warning(f"Templates directory not found: {self._templates_dir}")
+            return
+            
+        for filename in os.listdir(self._templates_dir):
+            if filename.endswith(('.yml', '.yaml')):
+                try:
+                    filepath = os.path.join(self._templates_dir, filename)
+                    with open(filepath, 'r') as f:
+                        templates = yaml.safe_load(f)
+                    
+                    if not templates:
+                        continue
+                        
+                    for template_id, template_data in templates.items():
+                        self._templates[template_id] = template_data
+                        self._logger.info(f"Loaded template: {template_id}")
+                except Exception as e:
+                    error_response = ErrorHandler.handle_error(
+                        AIConfigError(f"Failed to load template file {filename}: {str(e)}", config_name="templates"),
+                        self._logger
+                    )
+                    self._logger.error(f"Template loading error: {error_response['message']}")
+    
+    def render_prompt(self, 
+                     template_id: str, 
+                     variables: Optional[Dict[str, Any]] = None,
+                     version: Optional[str] = None,
+                     context: Optional[Dict[str, Any]] = None) -> Tuple[str, str]:
         """
-        Render the template with the provided variables.
+        Render a prompt template with variables.
         
         Args:
-            variables: Variables to use for rendering (combined with defaults)
+            template_id: ID of the template to use
+            variables: Variables to substitute in the template
+            version: Specific template version to use (or None for default/latest)
+            context: Additional context for template rendering
+            
+        Returns:
+            Tuple of (rendered prompt, usage ID)
+            
+        Raises:
+            ValueError: If template not found or invalid
+        """
+        if template_id not in self._templates:
+            raise ValueError(f"Template not found: {template_id}")
+            
+        template_data = self._templates[template_id]
+        
+        # Get versions
+        versions = template_data.get("versions", [])
+        if not versions:
+            raise ValueError(f"No versions found for template: {template_id}")
+            
+        # Select version
+        template_version = None
+        if version:
+            # Find specific version
+            for v in versions:
+                if v.get("version") == version:
+                    template_version = v
+                    break
+            if not template_version:
+                raise ValueError(f"Version {version} not found for template: {template_id}")
+        else:
+            # Use default or latest version
+            default_version = template_data.get("default_version")
+            if default_version:
+                for v in versions:
+                    if v.get("version") == default_version:
+                        template_version = v
+                        break
+            
+            # If no default or not found, use the latest version
+            if not template_version:
+                template_version = versions[-1]
+        
+        # Get template text
+        template_text = template_version.get("template", "")
+        if not template_text:
+            raise ValueError(f"Empty template text for template: {template_id}")
+        
+        # Generate usage ID for tracking
+        usage_id = str(uuid.uuid4())
+        
+        # Prepare variables
+        vars_to_use = {}
+        if variables:
+            vars_to_use.update(variables)
+        if context:
+            vars_to_use.update(context)
+        
+        # Render template
+        rendered_text = self._render_template_text(template_text, vars_to_use)
+        
+        # Store start time for metrics
+        self._template_metrics[usage_id] = {
+            "template_id": template_id,
+            "version": template_version.get("version"),
+            "start_time": time.time(),
+            "variables": vars_to_use
+        }
+        
+        return rendered_text, usage_id
+    
+    def _render_template_text(self, template_text: str, variables: Dict[str, Any]) -> str:
+        """
+        Render a template string by substituting variables.
+        
+        Args:
+            template_text: Template text with placeholders
+            variables: Variables to substitute
             
         Returns:
             Rendered template string
+        """
+        # Simple variable substitution with {{variable}} syntax
+        rendered = template_text
+        
+        # Find all variables in the template
+        var_pattern = r'\{\{([a-zA-Z0-9_]+)\}\}'
+        matches = re.findall(var_pattern, template_text)
+        
+        # Substitute each variable
+        for var_name in matches:
+            if var_name in variables:
+                placeholder = f"{{{{{var_name}}}}}"
+                value = str(variables[var_name])
+                rendered = rendered.replace(placeholder, value)
+            else:
+                self._logger.warning(f"Variable not provided: {var_name}")
+        
+        return rendered
+    
+    def record_prompt_performance(self, 
+                                 usage_id: str, 
+                                 metrics: Dict[str, Any]) -> None:
+        """
+        Record performance metrics for a prompt usage.
+        
+        Args:
+            usage_id: Usage ID returned from render_prompt
+            metrics: Metrics to record (latency, tokens, etc.)
+        """
+        if usage_id not in self._template_metrics:
+            self._logger.warning(f"Usage ID not found: {usage_id}")
+            return
+            
+        # Calculate latency if not provided
+        if "latency" not in metrics and "start_time" in self._template_metrics[usage_id]:
+            metrics["latency"] = time.time() - self._template_metrics[usage_id]["start_time"]
+            
+        # Update metrics
+        self._template_metrics[usage_id].update(metrics)
+        
+        # Log metrics
+        self._logger.info(f"Prompt metrics for {usage_id}: {metrics}")
+        
+        # Save metrics to file (in a real system, you'd want to use a database)
+        self._save_metrics(usage_id)
+    
+    def _save_metrics(self, usage_id: str) -> None:
+        """
+        Save metrics to file.
+        
+        Args:
+            usage_id: Usage ID to save metrics for
+        """
+        if usage_id not in self._template_metrics:
+            return
+            
+        # Create metrics directory if it doesn't exist
+        metrics_dir = os.path.join(self._templates_dir, "metrics")
+        os.makedirs(metrics_dir, exist_ok=True)
+        
+        # Save metrics to file
+        metrics_file = os.path.join(metrics_dir, f"{usage_id}.json")
+        try:
+            with open(metrics_file, 'w') as f:
+                json.dump(self._template_metrics[usage_id], f, indent=2)
+        except Exception as e:
+            self._logger.error(f"Failed to save metrics: {str(e)}")
+    
+    def get_template_ids(self) -> List[str]:
+        """
+        Get a list of all available template IDs.
+        
+        Returns:
+            List of template IDs
+        """
+        return list(self._templates.keys())
+    
+    def get_template_info(self, template_id: str) -> Dict[str, Any]:
+        """
+        Get information about a template.
+        
+        Args:
+            template_id: ID of the template
+            
+        Returns:
+            Template information
             
         Raises:
-            ValueError: If required variables are missing
+            ValueError: If template not found
         """
-        # Combine default values with provided variables
-        all_vars = {**self.default_values}
-        if variables:
-            all_vars.update(variables)
-        
-        # Get all variables in the template
-        required_vars = self.get_variables()
-        
-        # Check for missing variables
-        missing_vars = required_vars - set(all_vars.keys())
-        if missing_vars:
-            raise ValueError(f"Missing required variables: {', '.join(missing_vars)}")
-        
-        # Render the template by replacing placeholders
-        result = self.template
-        for var_name, var_value in all_vars.items():
-            if var_name in required_vars:
-                placeholder = f"{{{{{var_name}}}}}"
-                result = result.replace(placeholder, str(var_value))
-        
-        return result
+        if template_id not in self._templates:
+            raise ValueError(f"Template not found: {template_id}")
+            
+        return self._templates[template_id]
     
-    def update(self, 
-               name: Optional[str] = None,
-               description: Optional[str] = None,
-               template: Optional[str] = None,
-               default_values: Optional[Dict[str, Any]] = None) -> None:
+    def reload_templates(self) -> None:
+        """Reload all templates from the templates directory."""
+        self._templates = {}
+        self._load_templates()
+        self._logger.info("Templates reloaded")
+    
+    def add_template(self, template_id: str, template_data: Dict[str, Any]) -> None:
         """
-        Update the template.
+        Add a new template or update an existing one.
         
         Args:
-            name: New name (or None to keep current)
-            description: New description (or None to keep current)
-            template: New template string (or None to keep current)
-            default_values: New default values (or None to keep current)
+            template_id: ID of the template
+            template_data: Template data
         """
-        if name is not None:
-            self.name = name
-        if description is not None:
-            self.description = description
-        if template is not None:
-            self.template = template
-        if default_values is not None:
-            self.default_values.update(default_values)
+        self._templates[template_id] = template_data
+        self._logger.info(f"Added/updated template: {template_id}")
         
-        self.updated_at = datetime.utcnow()
-        
-    def to_dict(self) -> Dict[str, Any]:
+        # Save template to file
+        self._save_template(template_id, template_data)
+    
+    def _save_template(self, template_id: str, template_data: Dict[str, Any]) -> None:
         """
-        Convert the template to a dictionary.
-        
-        Returns:
-            Dictionary representation of the template
-        """
-        return {
-            "template_id": self.template_id,
-            "name": self.name,
-            "description": self.description,
-            "template": self.template,
-            "default_values": self.default_values,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
-        }
-        
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PromptTemplate':
-        """
-        Create a template from a dictionary.
+        Save a template to file.
         
         Args:
-            data: Dictionary representation of the template
-            
-        Returns:
-            New template instance
+            template_id: ID of the template
+            template_data: Template data
         """
-        template = cls(
-            template_id=data.get("template_id"),
-            name=data.get("name", ""),
-            description=data.get("description", ""),
-            template=data.get("template", ""),
-            default_values=data.get("default_values", {})
-        )
+        # Determine file path
+        file_path = os.path.join(self._templates_dir, f"{template_id}.yml")
         
-        # Handle dates if present
-        if "created_at" in data:
-            template.created_at = datetime.fromisoformat(data["created_at"])
-        if "updated_at" in data:
-            template.updated_at = datetime.fromisoformat(data["updated_at"])
-            
-        return template 
+        try:
+            with open(file_path, 'w') as f:
+                yaml.dump({template_id: template_data}, f, default_flow_style=False)
+            self._logger.info(f"Saved template to file: {file_path}")
+        except Exception as e:
+            self._logger.error(f"Failed to save template: {str(e)}") 

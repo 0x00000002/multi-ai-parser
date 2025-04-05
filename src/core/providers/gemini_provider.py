@@ -2,17 +2,17 @@
 Gemini provider implementation.
 """
 from typing import List, Dict, Any, Optional, Union
-from ..interfaces import ProviderInterface
+from ..interfaces import ProviderInterface, ToolCapableProviderInterface
 from ...utils.logger import LoggerInterface, LoggerFactory
-from ...config.config_manager import ConfigManager
+from ...config import get_config
 from ...exceptions import AIRequestError, AICredentialsError, AIProviderError
-from ...tools.models import ToolCall
+from ...tools.tool_call import ToolCall
 from .base_provider import BaseProvider
 import google.generativeai as genai
 import json
 
 
-class GeminiProvider(BaseProvider):
+class GeminiProvider(BaseProvider, ToolCapableProviderInterface):
     """Provider implementation for Google's Gemini AI."""
     
     # Add property for tool support
@@ -20,21 +20,18 @@ class GeminiProvider(BaseProvider):
     
     def __init__(self, 
                  model_id: str,
-                 config_manager: ConfigManager,
                  logger: Optional[LoggerInterface] = None):
         """
         Initialize the Gemini provider.
         
         Args:
             model_id: The model identifier
-            config_manager: Configuration manager instance
             logger: Logger instance
         """
-        super().__init__(model_id, config_manager, logger)
+        super().__init__(model_id, logger)
         
         # Get provider configuration
-        provider_config = self._config_manager.get_provider_config("gemini")
-        api_key = provider_config.api_key
+        api_key = self.config.get_api_key("gemini")
         
         if not api_key:
             raise AICredentialsError("No Gemini API key found")
@@ -275,4 +272,24 @@ class GeminiProvider(BaseProvider):
                 f"Failed to stream Gemini response: {str(e)}",
                 provider="gemini",
                 original_error=e
-            ) 
+            )
+    
+    def add_tool_message(self, messages: List[Dict[str, Any]], 
+                         name: str, content: str) -> List[Dict[str, Any]]:
+        """
+        Add a tool message to the conversation history.
+        
+        Args:
+            messages: The current conversation history
+            name: The name of the tool
+            content: The content/result of the tool call
+            
+        Returns:
+            Updated conversation history
+        """
+        messages.append({
+            "role": "tool",
+            "name": name,
+            "content": str(content)
+        })
+        return messages 

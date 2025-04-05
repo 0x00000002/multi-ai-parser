@@ -6,6 +6,7 @@ from ..utils.logger import LoggerInterface, LoggerFactory
 from ..exceptions import ConversationError
 from dataclasses import dataclass
 from .response_parser import ResponseParser
+from ..prompts.prompt_template import PromptTemplate
 
 
 @dataclass
@@ -32,6 +33,7 @@ class ConversationManager:
         self._metadata: Dict[str, Any] = {}
         self._context: Dict[str, Any] = {}
         self._response_parser = ResponseParser(logger=self._logger)
+        self._prompt_template = PromptTemplate(logger=self._logger)
     
     def add_message(self, 
                    role: str, 
@@ -199,4 +201,30 @@ class ConversationManager:
         self.clear_messages()
         self.clear_metadata()
         self._context.clear()
-        self._logger.debug("Reset conversation state") 
+        self._logger.debug("Reset conversation state")
+        
+    def set_system_prompt(self, system_prompt: str) -> None:
+        """Set or update the system prompt."""
+        # Add or update system message with the provided prompt
+        system_found = False
+        for i, msg in enumerate(self._messages):
+            if msg.role == "system":
+                self._messages[i] = Message(role="system", content=system_prompt)
+                system_found = True
+                break
+                
+        if not system_found:
+            self._messages.insert(0, Message(role="system", content=system_prompt)) 
+
+def _get_default_system_prompt(self) -> str:
+        """
+        Get default system prompt
+        Uses the template system if available.
+        
+        Returns:
+            Default system prompt string
+        """
+        prompt, _ = self._prompt_template.render_prompt(
+            template_id="conversation_manager"
+        )
+        return prompt
